@@ -3,15 +3,33 @@ from settings import SCREEN_W, SCREEN_H
 from states.base_state import BaseState
 from entities.player import Player
 from systems.physics_system import PhysicsSystem
+from world.tilemap import Tilemap
 
-GRAVITY = 1800
+TILE = 32
 
 class GameplayState(BaseState):
     def on_enter(self):
-        self.player = Player(self.game, SCREEN_W //2, SCREEN_H // 2)
+        self.tilemap = Tilemap(TILE)
+        self._build_test_map()
+
+        self.player = Player(self.game, 200, 200)
         self.ground_y = SCREEN_H - 80
         self.entities = [self.player]
-        self.physics = PhysicsSystem(self.ground_y)
+        self.physics = PhysicsSystem(self.tilemap)
+
+    def _build_test_map(self):
+        # Chão
+        for x in range(0, SCREEN_W // TILE):
+            self.tilemap.add_tile(x, (SCREEN_H // TILE) - 2)
+            self.tilemap.add_tile(x, (SCREEN_H // TILE) - 1)
+        # Algumas plataformas
+        for x in range(8, 14):
+            self.tilemap.add_tile(x, 14)
+        for x in range(20, 26):
+            self.tilemap.add_tile(x, 11)
+        # Uma parede
+        for y in range(10, 18):
+            self.tilemap.add_tile(30, y)
 
     def handle_event(self, event):
         self.player.handle_input(event)
@@ -22,6 +40,6 @@ class GameplayState(BaseState):
         self.physics.update(self.entities, dt)
         
     def draw(self, surface):
-        pygame.draw.rect(surface, (90, 60, 30), (0, self.ground_y, SCREEN_W, SCREEN_H - self.ground_y))
+        self.tilemap.draw(surface)
         for e in self.entities:
             e.draw(surface)
