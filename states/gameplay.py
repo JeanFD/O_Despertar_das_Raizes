@@ -5,6 +5,7 @@ from entities.player import Player
 from systems.physics_system import PhysicsSystem
 from world.tilemap import Tilemap
 from engine.camera import Camera
+from world.parallax_layer import ParallaxLayer
 TILE = 32
 
 class GameplayState(BaseState):
@@ -19,6 +20,14 @@ class GameplayState(BaseState):
         self.physics = PhysicsSystem(self.level.tilemap)
         self.camera  = Camera(self.level.width, self.level.height)
         self.camera.follow(self.player)
+
+        self.parallax_layers = [
+            ParallaxLayer(self.game.assets.image("assets/images/backgrounds/sky.png"),         0.0),
+            ParallaxLayer(self.game.assets.image("assets/images/backgrounds/mountains.png"),  0.1),
+            ParallaxLayer(self.game.assets.image("assets/images/backgrounds/clouds.png"),         0.2),
+            ParallaxLayer(self.game.assets.image("assets/images/backgrounds/forest_far.png"), 0.3),
+            ParallaxLayer(self.game.assets.image("assets/images/backgrounds/forest_near.png"),0.6),
+        ]
     # Faça um mapa maior — substitua _build_test_map
     def _build_test_map(self):
         for x in range(0, 100):
@@ -41,10 +50,14 @@ class GameplayState(BaseState):
         keys = pygame.key.get_pressed()
         self.player.update_input(keys)
         self.physics.update(self.entities, dt)
+        for e in self.entities:
+            e.update(dt)
         self.camera.update(dt)
 
     # draw — passe a câmera
     def draw(self, surface):
+        for layer in self.parallax_layers:
+            layer.draw(surface, self.camera.offset)
         self.level.draw_layer(surface, "background", self.camera)
         self.level.draw_layer(surface, "collision",  self.camera)
         for e in self.entities:

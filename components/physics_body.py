@@ -11,4 +11,4 @@ class PhysicsBody:
     @property
     def rect(self):
         e = self.entity
-        return pygame.Rect(e.pos.x, e.pos.y, self.width, self.height)
+        return pygame.Rect(e.pos.x - self.width / 2, e.pos.y - self.height, self.width, self.height)

@@ -1,27 +1,45 @@
 import pygame
+import os
 
-# Configurações
-TILE_SIZE = 32
-CORES = [
-    (100, 100, 100), # 0: Cinza escuro (Colisão)
-    (60, 60, 70),    # 1: Cinza azulado (Background)
-    (150, 150, 150), # 2: Cinza claro (Plataformas)
-    (200, 100, 100)  # 3: Avermelhado (Dano/Perigo)
+# Configurações do tutorial
+FRAME_W = 48
+FRAME_H = 48
+
+# Definição das cores para cada linha de animação
+# Linha 0: Idle (Azul), Linha 1: Run (Verde), Linha 2: Jump/Fall (Vermelho/Laranja)
+COLORS = [
+    [(0, 100, 255), (50, 150, 255)], # Tons de Azul (Idle)
+    [(0, 200, 100), (50, 255, 150)], # Tons de Verde (Run)
+    [(255, 100, 0), (255, 200, 0)]   # Vermelho e Laranja (Jump/Fall)
 ]
 
+# Quantidade de frames por linha
+ROW_FRAMES = [4, 8, 2] 
+
 pygame.init()
-# Cria uma fileira de 4 tiles (128x32 pixels)
-surface = pygame.Surface((TILE_SIZE * len(CORES), TILE_SIZE))
 
-for i, cor in enumerate(CORES):
-    rect = (i * TILE_SIZE, 0, TILE_SIZE, TILE_SIZE)
-    # Desenha o quadrado preenchido
-    pygame.draw.rect(surface, cor, rect)
-    # Desenha uma borda leve para você enxergar a grade
-    pygame.draw.rect(surface, (30, 30, 30), rect, 1)
+# Largura total baseada na maior linha (8 frames * 48px = 384px)
+sheet_w = FRAME_W * 8
+sheet_h = FRAME_H * 3
+surface = pygame.Surface((sheet_w, sheet_h), pygame.SRCALPHA)
 
-# Salva na pasta de assets
-import os
-os.makedirs("assets/images", exist_ok=True)
-pygame.image.save(surface, "assets/images/placeholder_tileset.png")
-print("Tileset gerado em assets/images/placeholder_tileset.png")
+for row, num_frames in enumerate(ROW_FRAMES):
+    for frame in range(num_frames):
+        rect = (frame * FRAME_W, row * FRAME_H, FRAME_W, FRAME_H)
+        
+        # Intercala cores para podermos ver o "piscar" da animação
+        color = COLORS[row][frame % 2]
+        
+        # Desenha o corpo do player (um quadrado menor centralizado)
+        # Deixamos um espaço embaixo (chão do frame) para o centro-inferior
+        player_rect = (frame * FRAME_W + 12, row * FRAME_H + 8, 24, 40)
+        pygame.draw.rect(surface, color, player_rect)
+        
+        # Desenha um detalhe (olho) para sabermos para onde ele está olhando
+        eye_rect = (frame * FRAME_W + 28, row * FRAME_H + 16, 6, 6)
+        pygame.draw.rect(surface, (255, 255, 255), eye_rect)
+
+# Salva na pasta correta
+os.makedirs("assets/images/sprites", exist_ok=True)
+pygame.image.save(surface, "assets/images/sprites/player.png")
+print("Spritesheet do Player gerado em assets/images/sprites/player.png")

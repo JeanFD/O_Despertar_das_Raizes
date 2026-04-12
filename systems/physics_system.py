@@ -18,17 +18,17 @@ class PhysicsSystem:
 
     def _gravity(self, e, dt):
         e.vel.y = min(e.vel.y + GRAVITY * dt, MAX_FALL)
-
-    def _move_x(self, e , body, dt):
+    
+    def _move_x(self, e, body, dt):
         e.pos.x += e.vel.x * dt
         body.on_wall = 0
         for tile in self.tilemap.get_nearby_rects(body.rect):
             if body.rect.colliderect(tile):
                 if e.vel.x > 0:
-                    e.pos.x = tile.left - body.width
+                    e.pos.x = tile.left - body.width / 2
                     body.on_wall = 1
                 elif e.vel.x < 0:
-                    e.pos.x = tile.right
+                    e.pos.x = tile.right + body.width / 2
                     body.on_wall = -1
                 e.vel.x = 0
 
@@ -37,9 +37,9 @@ class PhysicsSystem:
         body.on_ground = False
         for tile in self.tilemap.get_nearby_rects(body.rect):
             if body.rect.colliderect(tile):
-                if e. vel.y > 0:
-                    e.pos.y = tile.top - body.height
+                if e.vel.y > 0:
+                    e.pos.y = tile.top
                     body.on_ground = True
                 elif e.vel.y < 0:
-                    e.pos.y = tile.bottom
-                e.vel.y=0
+                    e.pos.y = tile.bottom + body.height
+                e.vel.y = 0

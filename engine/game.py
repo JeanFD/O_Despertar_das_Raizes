@@ -5,10 +5,15 @@ from settings import SCREEN_W, SCREEN_H, TITLE, FPS
 class Game:
     def __init__(self):
         pygame.init()
+        pygame.mixer.init(frequency=44100, size=-16, channels=2, buffer=512)
+        
         self.screen = pygame.display.set_mode((SCREEN_W, SCREEN_H))
         pygame.display.set_caption(TITLE)
         self.clock = pygame.time.Clock()
         self.running = True
+
+        from engine.asset_manager import AssetManager
+        self.assets = AssetManager()
         
         from engine.state_machine import StateMachine
         self.states = StateMachine(self)
@@ -16,6 +21,9 @@ class Game:
         #Empilha o estado inicial.
         from states.gameplay import GameplayState
         self.states.push(GameplayState(self))
+
+        # engine/game.py — no __init__
+        
 
     def run(self):
         while self.running:
