@@ -7,6 +7,9 @@ from components.animation import AnimationController
 MOVE_SPEED = 220
 JUMP_FORCE = -600
 
+COYOTE_TIME = 0.10
+JUMP_BUFFER = 0.10
+
 class Player(Entity):
     def __init__(self, game, x, y):
         super().__init__(game, x, y)
@@ -21,10 +24,14 @@ class Player(Entity):
 
         self.facing = 1
 
+        self.coyote_timer = 0.0
+        self.jump_buffer = 0;0
+
+
     def handle_input(self, event):
         if event.type == pygame.KEYDOWN:
-            if event.key == pygame.K_SPACE and self.body.on_ground:
-                self.vel.y = JUMP_FORCE
+            if event.key == pygame.K_SPACE:
+                self.jump_buffer = JUMP_BUFFER
 
     def update_input(self, keys):
         self.vel.x = 0
@@ -36,7 +43,7 @@ class Player(Entity):
             self.facing = -1
 
     def update(self, dt):
-        # Decide qual animação tocar
+        self._update_jump(dt)
         body = self.body
         if not body.on_ground:
             anim = "jump" if self.vel.y < 0 else "fall"
@@ -46,6 +53,22 @@ class Player(Entity):
             anim = "idle"
         self.anim.play(anim, flip_x=(self.facing == -1))
         self.anim.update(dt)
+
+    def _update_jump(self, dt):
+        body = self.body
+        # Atualiza coyote
+        if body.on_ground:
+            self.coyote_timer = COYOTE_TIME
+        else:
+            self.coyote_timer = max(0.0, self.coyote_timer - dt)
+        # Atualiza buffer
+        self.jump_buffer = max(0.0, self.jump_buffer - dt)
+
+        # Se ambos estão ativos, pula
+        if self.jump_buffer > 0 and self.coyote_timer > 0:
+            self.vel.y       = JUMP_FORCE
+            self.jump_buffer  = 0.0
+            self.coyote_timer = 0.0
 
     def draw(self, surface, camera):
         self.anim.draw(surface, self.pos, camera)
