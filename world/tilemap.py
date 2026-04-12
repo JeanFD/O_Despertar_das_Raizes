@@ -19,7 +19,11 @@ class Tilemap:
             t for t in self.collision_rects if x0 <= t.x // ts <= x1 and y0 <= t.y // ts <= y1
         ]
     
-    def draw(self, surface):
+    # world/tilemap.py — substitua o draw
+    def draw(self, surface, camera):
         for r in self.collision_rects:
-            pygame.draw.rect(surface, (60, 60, 80), r)
-            pygame.draw.rect(surface, (90, 90, 110), r, 1)
+            dr = camera.apply_rect(r)
+            # culling: só desenha o que está na tela
+            if -64 < dr.x < surface.get_width() + 64 and -64 < dr.y < surface.get_height() + 64:
+                pygame.draw.rect(surface, (60, 60, 80), dr)
+                pygame.draw.rect(surface, (90, 90, 110), dr, 1)

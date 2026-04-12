@@ -22,5 +22,6 @@ class Player(Entity):
         if keys[pygame.K_LEFT] or keys[pygame.K_a]:
             self.vel.x = -MOVE_SPEED
 
-    def draw(self, surface):
-        pygame.draw.rect(surface, (255,255,255), self.body.rect)
+    def draw(self, surface, camera):
+        rect = camera.apply_rect(self.body.rect)
+        pygame.draw.rect(surface, (255, 255, 255), rect)
