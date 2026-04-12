@@ -9,15 +9,15 @@ TILE = 32
 
 class GameplayState(BaseState):
     def on_enter(self):
-        self.tilemap = Tilemap(TILE)
-        self._build_test_map()
+        from world.level import Level
+        self.level = Level(self.game, "assets/maps/world.tmx")
 
-        self.player = Player(self.game, 200, 200)
-        self.ground_y = SCREEN_H - 80
+        spawn = self.level.spawn_points.get("player", [{"x": 200, "y": 200}])[0]
+        self.player = Player(self.game, spawn["x"], spawn["y"])
         self.entities = [self.player]
-        self.physics = PhysicsSystem(self.tilemap)
 
-        self.camera = Camera(world_w=100 * TILE, world_h=40 * TILE)
+        self.physics = PhysicsSystem(self.level.tilemap)
+        self.camera  = Camera(self.level.width, self.level.height)
         self.camera.follow(self.player)
     # Faça um mapa maior — substitua _build_test_map
     def _build_test_map(self):
@@ -45,6 +45,8 @@ class GameplayState(BaseState):
 
     # draw — passe a câmera
     def draw(self, surface):
-        self.tilemap.draw(surface, self.camera)
+        self.level.draw_layer(surface, "background", self.camera)
+        self.level.draw_layer(surface, "collision",  self.camera)
         for e in self.entities:
             e.draw(surface, self.camera)
+        self.level.draw_layer(surface, "foreground", self.camera)
