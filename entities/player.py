@@ -62,6 +62,9 @@ class Player(Entity):
         self._update_jump(dt)
         body = self.body
 
+        if body.on_wall and not body.on_ground and self.vel.y > 0:
+            self.vel.y = min(self.vel.y, 90)
+
         if self.dash_timer > 0:
             self.vel.y = 0
 
@@ -89,6 +92,10 @@ class Player(Entity):
             self.vel.y       = JUMP_FORCE
             self.jump_buffer  = 0.0
             self.coyote_timer = 0.0
+        elif self.jump_buffer > 0  and body.on_wall and not body.on_ground:
+            self.vel.y = JUMP_FORCE * 0.9
+            self.vel.x = -body.on_wall * MOVE_SPEED * 1.2
+            self.jump_buffer = 0.0
 
     def draw(self, surface, camera):
         self.anim.draw(surface, self.pos, camera)
