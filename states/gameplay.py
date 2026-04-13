@@ -13,6 +13,9 @@ class GameplayState(BaseState):
         from world.level import Level
         self.level = Level(self.game, "assets/maps/world.tmx")
 
+        from systems.combat_system import CombatSystem
+        self.combat = CombatSystem()
+
         spawn = self.level.spawn_points.get("player", [{"x": 200, "y": 200}])[0]
         self.player = Player(self.game, spawn["x"], spawn["y"])
         self.entities = [self.player]
@@ -50,6 +53,7 @@ class GameplayState(BaseState):
         keys = pygame.key.get_pressed()
         self.player.update_input(keys)
         self.physics.update(self.entities, dt)
+        self.combat.update(self.entities, dt)
         for e in self.entities:
             e.update(dt)
         self.camera.update(dt)

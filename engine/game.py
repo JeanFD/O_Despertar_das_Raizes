@@ -22,6 +22,9 @@ class Game:
         from states.gameplay import GameplayState
         self.states.push(GameplayState(self))
 
+        from engine.event_bus import EventBus
+        self.events = EventBus()
+
         # engine/game.py — no __init__
         
 
