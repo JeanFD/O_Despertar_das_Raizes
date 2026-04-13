@@ -10,6 +10,10 @@ JUMP_FORCE = -600
 COYOTE_TIME = 0.10
 JUMP_BUFFER = 0.10
 
+DASH_SPEED = 550
+DASH_TIME  = 0.18
+DASH_CD    = 0.80
+
 class Player(Entity):
     def __init__(self, game, x, y):
         super().__init__(game, x, y)
@@ -25,8 +29,10 @@ class Player(Entity):
         self.facing = 1
 
         self.coyote_timer = 0.0
-        self.jump_buffer = 0;0
+        self.jump_buffer = 0.0
 
+        self.dash_timer = 0.0
+        self.dash_cd    = 0.0
 
     def handle_input(self, event):
         if event.type == pygame.KEYDOWN:
@@ -34,6 +40,9 @@ class Player(Entity):
                 self.jump_buffer = JUMP_BUFFER
 
     def update_input(self, keys):
+        if self.dash_timer > 0:
+            return
+        
         self.vel.x = 0
         if keys[pygame.K_RIGHT] or keys[pygame.K_d]:
             self.vel.x =  MOVE_SPEED
@@ -41,10 +50,21 @@ class Player(Entity):
         if keys[pygame.K_LEFT] or keys[pygame.K_a]:
             self.vel.x = -MOVE_SPEED
             self.facing = -1
+        if keys[pygame.K_LSHIFT] and self.dash_cd <= 0:
+            self.dash_timer = DASH_TIME
+            self.dash_cd    = DASH_CD
+            self.vel.x      = self.facing * DASH_SPEED
+            self.vel.y      = 0
 
     def update(self, dt):
+        self.dash_timer = max(0.0, self.dash_timer - dt)
+        self.dash_cd = max(0.0, self.dash_cd - dt)
         self._update_jump(dt)
         body = self.body
+
+        if self.dash_timer > 0:
+            self.vel.y = 0
+
         if not body.on_ground:
             anim = "jump" if self.vel.y < 0 else "fall"
         elif abs(self.vel.x) > 10:
