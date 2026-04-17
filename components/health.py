@@ -6,7 +6,7 @@ class Health:
         self.invicible = 0.0
 
     def take_damage(self, amount, knockback=None):
-        if self.invincible > 0:
+        if self.invicible > 0:
             return
         self.current -= amount
         self.invicible = 0.5

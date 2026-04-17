@@ -1,11 +1,11 @@
 {
   "position": [
-    282.9399999999999,
-    832.0
+    1136.6,
+    384.0
   ],
   "level": "assets/maps/world.tmx",
   "abilities": {
-    "double_jump": false,
+    "double_jump": true,
     "dash": true,
     "wall_jump": false
   },

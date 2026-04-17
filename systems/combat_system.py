@@ -16,7 +16,7 @@ class CombatSystem:
                 if not ahb.can_hit(id(de)):
                     continue
                 if dbody and ahb.rect.colliderect(dbody.rect):
-                    dir_x = 1 if de.pox.x > ae.pos.x else -1
+                    dir_x = 1 if de.pos.x > ae.pos.x else -1
                     kb = (dir_x * ahb. knockback, -200)
                     dhp.take_damage(ahb.damage, kb)
                     ahb.register_hit(id(de))

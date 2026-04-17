@@ -43,6 +43,9 @@ class GameplayState(BaseState):
         self.hud = HUD(self.game)
         self.hud.set_player(self.player)
 
+        from systems.render_system import RenderSystem
+        self.render = RenderSystem()
+
         self.physics = PhysicsSystem(self.level.tilemap)
         self.camera  = Camera(self.level.width, self.level.height)
         self.camera.follow(self.player)
@@ -63,6 +66,9 @@ class GameplayState(BaseState):
             ab = data["props"].get("ability")
             if ab:
                 self.entities.append(AbilityPickup(self.game, data["x"], data["y"], ab))
+        for data in self.level.spawn_points.get("crawler", []):
+            from entities.enemies.crawler import Crawler
+            self.entities.append(Crawler(self.game, data["x"], data["y"]))
 
     def handle_event(self, event):
         self.player.handle_input(event)
@@ -82,11 +88,11 @@ class GameplayState(BaseState):
         self.camera.update(dt)
 
     def draw(self, surface):
+    # 1. Parallax
         for layer in self.parallax_layers:
             layer.draw(surface, self.camera.offset)
-        self.level.draw_layer(surface, "background", self.camera)
-        self.level.draw_layer(surface, "collision",  self.camera)
-        for e in self.entities:
-            e.draw(surface, self.camera)
-        self.level.draw_layer(surface, "foreground", self.camera)
-        self.hud.draw(surface)
+            self.level.draw_layer(surface, "background", self.camera)
+            self.render.draw_entities(surface, self.entities, self.camera)
+            self.level.draw_layer(surface, "collision", self.camera)
+            self.level.draw_layer(surface, "foreground", self.camera)
+            self.hud.draw(surface)
