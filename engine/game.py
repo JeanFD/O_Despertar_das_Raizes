@@ -14,6 +14,9 @@ class Game:
 
         from engine.asset_manager import AssetManager
         self.assets = AssetManager()
+
+        from engine.event_bus import EventBus
+        self.events = EventBus()
         
         from engine.state_machine import StateMachine
         self.states = StateMachine(self)
@@ -22,8 +25,7 @@ class Game:
         from states.gameplay import GameplayState
         self.states.push(GameplayState(self))
 
-        from engine.event_bus import EventBus
-        self.events = EventBus()
+        
 
         # engine/game.py — no __init__
         

@@ -5,8 +5,8 @@ class EventBus:
         self._listeners = defaultdict(list)
 
     def subscribe(self, event_type, callback):
-        if callback in self._listeners[event_type]:
-            self._listeners[event_type].remove(callback)
+        if callback not in self._listeners[event_type]:
+            self._listeners[event_type].append(callback)
 
     def unsubscribe(self, event_type, callback):
         if callback in self._listeners[event_type]:
