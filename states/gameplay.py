@@ -20,12 +20,28 @@ class GameplayState(BaseState):
         self.player = Player(self.game, spawn["x"], spawn["y"])
         self.entities = [self.player]
 
+        from data.save_system import SaveSystem
+        self.saves = SaveSystem(self.game)
+        self.current_level_path = "assets/maps/world.tmx"
+
+        data = self.saves.load(0)
+        if data:
+            self.player.pos.x = data["position"][0]
+            self.player.pos.y = data["position"][1]
+            for k, v in data["abilities"].items():
+                self.player.abilities[k] = v
+            self.player.hp.current = data["health"]
+
         from systems.combat_system import CombatSystem
         self.combat = CombatSystem()
 
         from systems.ability_system import AbilitySystem
         self.abilities_sys = AbilitySystem(self.game)
         self.abilities_sys.set_player(self.player)
+
+        from ui.hud import HUD
+        self.hud = HUD(self.game)
+        self.hud.set_player(self.player)
 
         self.physics = PhysicsSystem(self.level.tilemap)
         self.camera  = Camera(self.level.width, self.level.height)
@@ -39,6 +55,7 @@ class GameplayState(BaseState):
             ParallaxLayer(self.game.assets.image("assets/images/backgrounds/forest_near.png"),0.6),
         ]
         self._spawn_map_entities()
+        
 
 
     def _spawn_map_entities(self):
@@ -49,6 +66,10 @@ class GameplayState(BaseState):
 
     def handle_event(self, event):
         self.player.handle_input(event)
+        if event.type == pygame.KEYDOWN:
+            if event.key == pygame.K_F5:
+                self.saves.save(0, self)
+                print("Saved!")
 
     def update(self, dt):
         keys = pygame.key.get_pressed()
@@ -68,3 +89,4 @@ class GameplayState(BaseState):
         for e in self.entities:
             e.draw(surface, self.camera)
         self.level.draw_layer(surface, "foreground", self.camera)
+        self.hud.draw(surface)
