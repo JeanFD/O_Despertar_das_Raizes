@@ -91,8 +91,8 @@ class GameplayState(BaseState):
     # 1. Parallax
         for layer in self.parallax_layers:
             layer.draw(surface, self.camera.offset)
-            self.level.draw_layer(surface, "background", self.camera)
-            self.render.draw_entities(surface, self.entities, self.camera)
-            self.level.draw_layer(surface, "collision", self.camera)
-            self.level.draw_layer(surface, "foreground", self.camera)
-            self.hud.draw(surface)
+        self.level.draw_layer(surface, "background", self.camera)
+        self.render.draw_entities(surface, self.entities, self.camera)
+        self.level.draw_layer(surface, "collision", self.camera)
+        self.level.draw_layer(surface, "foreground", self.camera)
+        self.hud.draw(surface)
