@@ -9,7 +9,6 @@ from engine.camera import Camera
 from world.parallax_layer import ParallaxLayer
 
 TILE = 32
-# ... (seus imports permanecem iguais)
 
 class GameplayState(BaseState):
     def on_enter(self):

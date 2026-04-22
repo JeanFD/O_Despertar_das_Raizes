@@ -97,8 +97,6 @@ class Player(Entity):
         if self.dash_timer > 0:
             self.vel.y = 0
 
-      
-
         if not body.on_ground:
             anim = "jump" if self.vel.y < 0 else "fall"
         elif abs(self.vel.x) > 10:
@@ -113,7 +111,7 @@ class Player(Entity):
         # Atualiza coyote
         if body.on_ground:
             self.coyote_timer = COYOTE_TIME
-            self.jumps_left = 2 if self.abilities["double_jump"] else 1
+            self.jumps_left = 1 if self.abilities["double_jump"] else 0
         else:
             self.coyote_timer = max(0.0, self.coyote_timer - dt)
         # Atualiza buffer

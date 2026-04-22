@@ -9,8 +9,7 @@ class Crawler(Entity):
         super().__init__(game, x, y)
         self.body = self.add(PhysicsBody, 32, 24)
         self.hp = self.add(Health, 30)
-        self.touch_hb = self.add(Hitbox, -16, -24, 32, 24,
-                                 damage=10, team="enemy", knockback=300)
+        self.touch_hb = self.add(Hitbox, -16, -24, 32, 24, damage=10, team="enemy", knockback=200)
         self.touch_hb.active = True
         self.dir = -1
         self.vel.x = self.dir * 80
