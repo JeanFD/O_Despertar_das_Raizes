@@ -23,13 +23,13 @@ class GameplayState(BaseState):
         self.saves = SaveSystem(self.game)
         self.current_level_path = "assets/maps/world.tmx"
 
-        data = self.saves.load(0)
+        data = getattr(self, "load_data", None)
         if data:
             self.player.pos.x = data["position"][0]
             self.player.pos.y = data["position"][1]
-            for k, v in data["abilities"].items():
+            for k, v in data.get("abilities", {}).items():
                 self.player.abilities[k] = v
-            self.player.hp.current = data["health"]
+            self.player.hp.current = data.get("health", 100)
 
         from systems.combat_system import CombatSystem
         self.combat = CombatSystem()
@@ -70,9 +70,13 @@ class GameplayState(BaseState):
             self.entities.append(Crawler(self.game, data["x"], data["y"]))
 
     def handle_event(self, event):
-        self.player.handle_input(event)
         if event.type == pygame.KEYDOWN:
-            if event.key == pygame.K_F5:
+            if event.key == pygame.K_ESCAPE:
+                from states.pause import PauseState
+                self.game.states.push(PauseState(self.game))
+            elif event.key in (pygame.K_SPACE, pygame.K_UP, pygame.K_w):
+                self.player.jump_buffer = 0.10
+            elif event.key == pygame.K_F5:
                 self.saves.save(0, self)
                 print("Saved!")
 

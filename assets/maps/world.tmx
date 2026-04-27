@@ -78,13 +78,13 @@
    </properties>
    <point/>
   </object>
-  <object id="8" name="double_jump" type="ability_pickup" x="1022.67" y="536">
+  <object id="8" name="double_jump" type="ability_pickup" x="95.3973" y="845.091">
    <properties>
     <property name="ability" value="double_jump"/>
    </properties>
    <point/>
   </object>
-  <object id="9" name="crawler" type="crawler" x="418.182" y="660.606">
+  <object id="9" name="crawler" type="crawler" x="96.9699" y="848.485">
    <point/>
   </object>
   <object id="10" name="player" type="player" x="51.5151" y="118.182">

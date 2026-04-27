@@ -21,9 +21,14 @@ class Game:
         from engine.state_machine import StateMachine
         self.states = StateMachine(self)
 
-        #Empilha o estado inicial.
-        from states.gameplay import GameplayState
-        self.states.push(GameplayState(self))
+        from engine.settings_manager import SettingsManager
+        self.settings = SettingsManager()
+
+        self._fps_font = pygame.font.SysFont("consolas,monospace", 16)
+
+        from states.main_menu import MainMenu
+        self.states.push(MainMenu(self))
+
 
         
 
@@ -42,6 +47,13 @@ class Game:
             self.states.update(dt)
             self.screen.fill((20, 20, 30))
             self.states.draw(self.screen)
+
+            if self.settings.get("show_fps"):
+                fps_surf = self._fps_font.render(
+                    f"FPS: {self.clock.get_fps():.0f}", True, (200, 200, 200)
+                )
+                self.screen.blit(fps_surf, (8, 8))
+
             pygame.display.flip()
 
         pygame.quit()

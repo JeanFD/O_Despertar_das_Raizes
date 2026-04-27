@@ -48,15 +48,10 @@ class Player(Entity):
         self.jumps_left = 1
 
         self.abilities = {
-            "double_jump": False,
-            "dash": False,
-            "wall_jump": False,
+            "double_jump": True,
+            "dash": True,
+            "wall_jump": True,
         }
-
-    def handle_input(self, event):
-        if event.type == pygame.KEYDOWN:
-            if event.key == pygame.K_SPACE:
-                self.jump_buffer = JUMP_BUFFER
 
     def update_input(self, keys):
         if self.dash_timer > 0:
