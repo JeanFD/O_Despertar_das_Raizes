@@ -68,6 +68,9 @@ class GameplayState(BaseState):
         for data in self.level.spawn_points.get("crawler", []):
             from entities.enemies.crawler import Crawler
             self.entities.append(Crawler(self.game, data["x"], data["y"]))
+        for data in self.level.spawn_points.get("scarecrow", []):
+            from entities.enemies.scarecrow import Scarecrow
+            self.entities.append(Scarecrow(self.game, data["x"], data["y"]))
 
     def handle_event(self, event):
         if event.type == pygame.KEYDOWN:
