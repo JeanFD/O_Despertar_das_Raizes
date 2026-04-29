@@ -16,12 +16,12 @@ class Scarecrow(Entity):
         #Ataque frontal
         self.hb_forward = self.add(Hitbox, 16, -24, 16, 50,
                                  damage=10, team="enemy", knockback=300)
-        self.hb_forward.active = False
+        self.hb_forward.active = True
 
         #Ataque baixo
         self.hb_down = self.add(Hitbox, -16, 26, 32, 24,
                                  damage=15, team="enemy", knockback=400)
-        self.hb_down.active = False
+        self.hb_down.active = True
 
         self.state = "idle"
         self.timer = 1.2
@@ -82,21 +82,21 @@ class Scarecrow(Entity):
         self.vel.x = 100 * self.dir
 
         if self.timer <= 0:
-            self.hb_forward.active = False
+            self.hb_forward.active = True
             self._change_state("recovery")
 
     def _update_attack_down(self, dt):
         self.vel.x = 0
 
         if self.timer <= 0:
-            self.hb_down.active = False
+            self.hb_down.active = True
             self._change_state("recovery")
 
     def _update_dash(self, dt):
         self.vel.x =self.dir *320
 
         if self.body.on_wall:
-            self.hb_forward.active = False
+            self.hb_forward.active = True
             self._change_state("recovery")
             return
         
