@@ -48,8 +48,8 @@ class Player(Entity):
         self.jumps_left = 1
 
         self.abilities = {
-            "double_jump": True,
-            "dash": True,
+            "double_jump": False,
+            "dash": False,
             "wall_jump": True,
         }
 

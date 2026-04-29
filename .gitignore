@@ -1,0 +1,176 @@
+# ==========================================
+# Python
+# ==========================================
+__pycache__/
+*.py[cod]
+*$py.class
+*.pyo
+*.pyd
+*.so
+*.egg
+*.egg-info/
+dist/
+build/
+eggs/
+parts/
+var/
+sdist/
+wheels/
+*.egg-link
+.eggs/
+MANIFEST
+
+# ==========================================
+# Virtual Environments
+# ==========================================
+.venv/
+venv/
+env/
+ENV/
+env.bak/
+venv.bak/
+.python-version
+Pipfile.lock
+poetry.lock
+
+# ==========================================
+# IDEs e Editores
+# ==========================================
+# VSCode
+.vscode/
+*.code-workspace
+
+# PyCharm / JetBrains
+.idea/
+*.iml
+*.iws
+*.ipr
+
+# Vim / Neovim
+*.swp
+*.swo
+*~
+
+# Emacs
+\#*\#
+.\#*
+
+# Sublime Text
+*.sublime-project
+*.sublime-workspace
+
+# ==========================================
+# Sistema Operacional
+# ==========================================
+# Windows
+Thumbs.db
+Thumbs.db:encryptable
+ehthumbs.db
+ehthumbs_vista.db
+Desktop.ini
+$RECYCLE.BIN/
+*.lnk
+*.cab
+*.msi
+*.msix
+*.msm
+*.msp
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+._*
+.Spotlight-V100
+.Trashes
+.fseventsd
+.TemporaryItems
+.VolumeIcon.icns
+.com.apple.timemachine.donotpresent
+
+# Linux
+.directory
+.Trash-*
+
+# ==========================================
+# Saves e Dados do Jogo (desenvolvimento)
+# ==========================================
+# Manter a pasta mas ignorar os saves locais
+data/saves/*.json
+
+# Manter arquivos de configuração de exemplo, ignorar os locais
+settings_local.json
+config_local.json
+
+# ==========================================
+# Assets Gerados / Temporários
+# ==========================================
+# Cache de assets compilados
+assets/cache/
+assets/temp/
+*.pyc.cache
+
+# Sprites / sheets gerados automaticamente (se houver pipeline)
+# assets/generated/
+
+# ==========================================
+# Logs e Debugging
+# ==========================================
+*.log
+logs/
+crash_reports/
+*.trace
+
+# ==========================================
+# Distribuição / Build do jogo
+# ==========================================
+# PyInstaller
+*.spec
+dist/
+build/
+*.exe
+
+# cx_Freeze
+build/
+dist/
+
+# Nuitka
+*.build/
+*.dist/
+
+# ==========================================
+# Cobertura de Testes
+# ==========================================
+htmlcov/
+.coverage
+.coverage.*
+coverage.xml
+*.cover
+*.py,cover
+.pytest_cache/
+.tox/
+nosetests.xml
+test-results/
+
+# ==========================================
+# Typing / Linting
+# ==========================================
+.mypy_cache/
+.dmypy.json
+dmypy.json
+.pyre/
+.pytype/
+.ruff_cache/
+
+# ==========================================
+# Variáveis de Ambiente / Segredos
+# ==========================================
+.env
+.env.*
+!.env.example
+secrets.json
+*.key
+*.pem
+
+CLAUDE.md
+data/
