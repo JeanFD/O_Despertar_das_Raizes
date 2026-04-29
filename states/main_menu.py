@@ -16,6 +16,7 @@ class MainMenu(BaseState):
         self.items = [
             "Novo Jogo",
             "Continuar",
+            "Multiplayer",
             "Configurações",
             "Sair",
         ]
@@ -54,6 +55,9 @@ class MainMenu(BaseState):
             if self.has_save:
                 self._open_save_menu(mode="load")
 
+        elif choice == "Multiplayer":
+            self._open_multiplayer()
+
         elif choice == "Configurações":
             self._open_settings()
 
@@ -68,6 +72,10 @@ class MainMenu(BaseState):
     def _open_save_menu(self, mode="load"):
         from states.save_menu import SaveMenu
         self.game.states.push(SaveMenu(self.game, mode=mode))
+
+    def _open_multiplayer(self):
+        from states.multiplayer_menu import MultiplayerMenu
+        self.game.states.push(MultiplayerMenu(self.game))
 
     def _open_settings(self):
         from states.settings_state import SettingsState

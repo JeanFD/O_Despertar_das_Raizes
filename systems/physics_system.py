@@ -9,6 +9,8 @@ class PhysicsSystem:
 
     def update(self, entities, dt):
         for e in entities:
+            if getattr(e, "net_remote", False):
+                continue
             body = e.get(PhysicsBody)
             if not body:
                 continue

@@ -125,5 +125,26 @@ class Player(Entity):
             self.jump_buffer = 0.0
             self.coyote_timer = 0.0
 
+    def apply_net_input(self, inp: dict):
+        """Aplica dict de inputs recebido pela rede. Espelha update_input()."""
+        if self.dash_timer > 0:
+            return
+        self.vel.x = 0
+        if inp.get("r"):
+            self.vel.x =  MOVE_SPEED
+            self.facing = 1
+        if inp.get("l"):
+            self.vel.x = -MOVE_SPEED
+            self.facing = -1
+        if inp.get("da") and self.dash_cd <= 0 and self.abilities["dash"]:
+            self.dash_timer = DASH_TIME
+            self.dash_cd    = DASH_CD
+            self.vel.x      = self.facing * DASH_SPEED
+            self.vel.y      = 0
+        if inp.get("at") and self.attack_timer <= 0:
+            self.attack_timer = ATTACK_TIME
+        if inp.get("ju"):
+            self.jump_buffer = JUMP_BUFFER
+
     def draw(self, surface, camera):
         self.anim.draw(surface, self.pos, camera)
