@@ -32,13 +32,23 @@ class LobbyState(BaseState):
 
     def _host_thread(self):
         from network.host import Host
+        from settings import HOST_PORT
         try:
-            local_ip = socket.gethostbyname(socket.gethostname())
-            self._status = f"Aguardando conexão...\nSeu IP: {local_ip}"
-        except OSError:
+            ips = _get_lan_ips()
+            ip_str = " / ".join(ips) if ips else "IP não detectado"
+            self._status = (f"Aguardando conexão na porta {HOST_PORT}...\n"
+                            f"Seu IP na rede: {ip_str}")
+        except Exception:
             self._status = "Aguardando conexão..."
 
-        net = Host(self.game_mode)
+        try:
+            net = Host(self.game_mode)
+        except OSError as e:
+            self._error = (f"Não foi possível abrir a porta {HOST_PORT} UDP.\n"
+                           f"Erro: {e}\n"
+                           "Tente fechar e reabrir o jogo.")
+            return
+
         if net.wait_for_client(timeout=120.0):
             self._net = net
             self._status = "Cliente conectado! Iniciando..."
@@ -49,8 +59,14 @@ class LobbyState(BaseState):
 
     def _client_thread(self):
         from network.client import Client
-        self._status = f"Conectando a {self.host_ip}..."
-        net = Client()
+        from settings import HOST_PORT
+        self._status = f"Conectando a {self.host_ip}:{HOST_PORT}..."
+        try:
+            net = Client()
+        except OSError as e:
+            self._error = f"Erro ao abrir socket local: {e}"
+            return
+
         if net.connect(self.host_ip, timeout=15.0):
             self._net = net
             self.game_mode = net.game_mode
@@ -58,8 +74,11 @@ class LobbyState(BaseState):
             self._ready = True
         else:
             net.close()
-            self._error = (f"Não foi possível conectar a {self.host_ip}\n"
-                           "Verifique o IP e se o host está aguardando.")
+            self._error = (f"Sem resposta de {self.host_ip}:{HOST_PORT}\n"
+                           "Verifique:\n"
+                           "1) O host está na tela de espera?\n"
+                           "2) Firewall liberado? (veja test_net.py)\n"
+                           "3) IP correto?")
 
     def handle_event(self, event):
         if event.type == pygame.KEYDOWN and event.key == pygame.K_ESCAPE:
@@ -92,10 +111,12 @@ class LobbyState(BaseState):
 
         text = self._error if self._error else self._status
         color = (255, 80, 80) if self._error else (180, 220, 180)
+        lines = text.split("\n")
+        start_y = H // 2 - (len(lines) * 28) // 2
 
-        for i, line in enumerate(text.split("\n")):
+        for i, line in enumerate(lines):
             t = f.render(line, True, color)
-            surface.blit(t, (W // 2 - t.get_width() // 2, H // 2 - 20 + i * 32))
+            surface.blit(t, (W // 2 - t.get_width() // 2, start_y + i * 28))
 
         if not self._error:
             self._draw_spinner(surface, W // 2, H // 2 + 90)
@@ -111,3 +132,37 @@ class LobbyState(BaseState):
             ay = cy + math.sin(angle) * 20
             a = int(40 + 215 * (i / 8))
             pygame.draw.circle(surface, (a, a, 200), (int(ax), int(ay)), 4)
+
+
+def _get_lan_ips() -> list[str]:
+    """
+    Retorna lista de IPs LAN desta máquina (Wi-Fi / Ethernet).
+    Usa o truque de connect UDP para forçar o SO a escolher
+    a interface correta — não envia dados de verdade.
+    """
+    import socket
+    found = []
+
+    # Método 1: connect trick (mais confiável — pega o IP da rota padrão)
+    try:
+        s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        s.settimeout(0)
+        s.connect(("8.8.8.8", 80))
+        ip = s.getsockname()[0]
+        s.close()
+        if not ip.startswith("127."):
+            found.append(ip)
+    except Exception:
+        pass
+
+    # Método 2: getaddrinfo (captura múltiplas interfaces)
+    try:
+        hostname = socket.gethostname()
+        for info in socket.getaddrinfo(hostname, None, socket.AF_INET):
+            ip = info[4][0]
+            if not ip.startswith("127.") and ip not in found:
+                found.append(ip)
+    except Exception:
+        pass
+
+    return found if found else ["127.0.0.1 (local only)"]
