@@ -1,4 +1,3 @@
-# entities/player.py — substitua tudo
 import pygame
 from entities.entity import Entity
 from components.physics_body import PhysicsBody
@@ -44,6 +43,8 @@ class Player(Entity):
 
         self.dash_timer = 0.0
         self.dash_cd    = 0.0
+        
+        self.wall_jump_lockout = 0.0
 
         self.jumps_left = 1
 
@@ -57,18 +58,22 @@ class Player(Entity):
         if self.dash_timer > 0:
             return
         
-        self.vel.x = 0
-        if keys[pygame.K_RIGHT] or keys[pygame.K_d]:
-            self.vel.x =  MOVE_SPEED
-            self.facing = 1
-        if keys[pygame.K_LEFT] or keys[pygame.K_a]:
-            self.vel.x = -MOVE_SPEED
-            self.facing = -1
+        # TRAVA DE MOVIMENTO: Só obedece as setas se não estiver no meio de um wall jump
+        if self.wall_jump_lockout <= 0:
+            self.vel.x = 0
+            if keys[pygame.K_RIGHT] or keys[pygame.K_d]:
+                self.vel.x =  MOVE_SPEED
+                self.facing = 1
+            if keys[pygame.K_LEFT] or keys[pygame.K_a]:
+                self.vel.x = -MOVE_SPEED
+                self.facing = -1
+                
         if keys[pygame.K_LSHIFT] and self.dash_cd <= 0 and self.abilities["dash"]:
             self.dash_timer = DASH_TIME
             self.dash_cd    = DASH_CD
             self.vel.x      = self.facing * DASH_SPEED
             self.vel.y      = 0
+            
         if keys[pygame.K_z] or keys[pygame.K_j]:
             if self.attack_timer <= 0:
                 self.attack_timer = ATTACK_TIME
@@ -76,6 +81,7 @@ class Player(Entity):
     def update(self, dt):
         self.dash_timer = max(0.0, self.dash_timer - dt)
         self.dash_cd = max(0.0, self.dash_cd - dt)
+        self.wall_jump_lockout = max(0.0, self.wall_jump_lockout - dt)
 
         self.attack_timer = max(0.0, self.attack_timer - dt)
         self.attack_hb.active = self.attack_timer > 0
@@ -103,27 +109,37 @@ class Player(Entity):
 
     def _update_jump(self, dt):
         body = self.body
-        # Atualiza coyote
+        
         if body.on_ground:
             self.coyote_timer = COYOTE_TIME
             self.jumps_left = 1 if self.abilities["double_jump"] else 0
         else:
             self.coyote_timer = max(0.0, self.coyote_timer - dt)
-        # Atualiza buffer
+            
         self.jump_buffer = max(0.0, self.jump_buffer - dt)
 
-        # Se ambos estão ativos, pula
-        can_jump = self.coyote_timer > 0 or self.jumps_left > 0
-        if self.jump_buffer > 0 and can_jump:
-            if body.on_wall and self.abilities["wall_jump"]:
-                self.vel.y = JUMP_FORCE * 0.9
-                self.vel.x = -body.on_wall * MOVE_SPEED * 1.2
-            else:
+        can_normal_jump = self.coyote_timer > 0 or self.jumps_left > 0
+        can_wall_jump = body.on_wall and self.abilities.get("wall_jump", False)
+
+        if self.jump_buffer > 0:
+            if can_wall_jump:
+                self.vel.y = JUMP_FORCE * 0.95 
+                self.vel.x = -self.facing * MOVE_SPEED * 1.0 
+                self.facing = -self.facing
+                
+                self.jumps_left = 1 if self.abilities.get("double_jump") else 0
+                
+                self.wall_jump_lockout = 0.18
+                
+                self.jump_buffer = 0.0
+                
+            elif can_normal_jump:
                 self.vel.y = JUMP_FORCE
                 if self.coyote_timer <= 0:
                     self.jumps_left -= 1
-            self.jump_buffer = 0.0
-            self.coyote_timer = 0.0
+                    
+                self.jump_buffer = 0.0
+                self.coyote_timer = 0.0
 
     def draw(self, surface, camera):
         self.anim.draw(surface, self.pos, camera)
