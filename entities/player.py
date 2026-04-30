@@ -127,7 +127,7 @@ class Player(Entity):
                 self.vel.x = -self.facing * MOVE_SPEED * 1.0 
                 self.facing = -self.facing
                 
-                self.jumps_left = 1 if self.abilities.get("double_jump") else 0
+                #self.jumps_left = 1 if self.abilities.get("double_jump") else 0
                 
                 self.wall_jump_lockout = 0.18
                 
