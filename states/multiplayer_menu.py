@@ -47,8 +47,15 @@ class MultiplayerMenu(BaseState):
         elif key == pygame.K_ESCAPE:
             self._back()
 
+    _NUMPAD = {
+        pygame.K_KP0: "0", pygame.K_KP1: "1", pygame.K_KP2: "2",
+        pygame.K_KP3: "3", pygame.K_KP4: "4", pygame.K_KP5: "5",
+        pygame.K_KP6: "6", pygame.K_KP7: "7", pygame.K_KP8: "8",
+        pygame.K_KP9: "9", pygame.K_KP_PERIOD: ".",
+    }
+
     def _ip_key(self, key):
-        if key == pygame.K_RETURN:
+        if key in (pygame.K_RETURN, pygame.K_KP_ENTER):
             if self._ip:
                 self._launch_client()
         elif key == pygame.K_ESCAPE:
@@ -59,7 +66,7 @@ class MultiplayerMenu(BaseState):
         elif key == pygame.K_BACKSPACE:
             self._ip = self._ip[:-1]
         else:
-            ch = pygame.key.name(key)
+            ch = self._NUMPAD.get(key) or pygame.key.name(key)
             if len(ch) == 1 and (ch.isdigit() or ch == "."):
                 if len(self._ip) < 15:
                     self._ip += ch
