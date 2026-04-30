@@ -54,9 +54,9 @@ class MultiplayerGameplayState(BaseState):
     # ── Inicialização ─────────────────────────────────────────────────────────
 
     def on_enter(self):
-        self._tilemap = self._build_tilemap()
+        self._load_world()
         self._physics = PhysicsSystem(self._tilemap)
-        self._camera  = Camera(3200, 800)
+        self._camera  = Camera(self._world_w, self._world_h)
 
         self._spawn_entities()
         self._camera.follow(self._local_entity)
@@ -70,19 +70,24 @@ class MultiplayerGameplayState(BaseState):
         if self.net:
             self.net.close()
 
-    def _build_tilemap(self):
+    def _load_world(self):
+        """Carrega o mesmo mapa do single player. Fallback em plataformas fixas."""
         try:
             from world.level import Level
-            self._level = Level(self.game, "assets/maps/world.tmx")
-            return self._level.tilemap
+            self._level   = Level(self.game, "assets/maps/world.tmx")
+            self._tilemap = self._level.tilemap
+            self._world_w = self._level.width
+            self._world_h = self._level.height
         except Exception as e:
-            print(f"[MP] Tilemap de fallback: {e}")
-            self._level = None
-            return self._hardcoded_tilemap()
+            print(f"[MP] Usando tilemap de fallback: {e}")
+            self._level   = None
+            self._tilemap = self._fallback_tilemap()
+            self._world_w = 3200
+            self._world_h = 800
 
-    def _hardcoded_tilemap(self):
+    def _fallback_tilemap(self):
         tm = Tilemap(32)
-        for gx in range(100):
+        for gx in range(100):   # chão
             tm.add_tile(gx, 24)
         for gx in range(5, 15):
             tm.add_tile(gx, 19)
@@ -92,9 +97,31 @@ class MultiplayerGameplayState(BaseState):
             tm.add_tile(gx, 19)
         return tm
 
+    def _get_spawns(self):
+        """
+        Devolve (sp1, sp2) usando os spawn points reais do mapa TMX.
+        sp1 = spawn "player" do mapa (mesmo do single player).
+        sp2 = spawn "player2" se existir, senão sp1 deslocado 120px à direita.
+        """
+        default = {"x": 200.0, "y": 300.0}
+
+        if self._level:
+            pts = self._level.spawn_points
+            p1_data = pts.get("player", [default])[0]
+            p2_data = pts.get("player2", [])
+            sp1 = (float(p1_data["x"]), float(p1_data["y"]))
+            if p2_data:
+                sp2 = (float(p2_data[0]["x"]), float(p2_data[0]["y"]))
+            else:
+                sp2 = (sp1[0] + 120.0, sp1[1])
+        else:
+            sp1 = (200.0, 680.0)
+            sp2 = (320.0, 680.0)
+
+        return sp1, sp2
+
     def _spawn_entities(self):
-        sp1 = (220.0, 680.0)
-        sp2 = (900.0, 680.0)
+        sp1, sp2 = self._get_spawns()
 
         if self.game_mode == "coop":
             if self.is_host:
