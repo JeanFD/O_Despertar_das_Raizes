@@ -52,6 +52,7 @@ class MultiplayerGameplayState(BaseState):
         self._paused = False
         self._jump_pressed = False
         self._tick = 0
+        self._last_client_input: dict = {}
 
     # ── Inicialização ─────────────────────────────────────────────────────────
 
@@ -183,7 +184,11 @@ class MultiplayerGameplayState(BaseState):
             self._update_client(dt)
 
         self._camera.update(dt)
-        self._entities = [e for e in self._entities if e.alive]
+        # Nunca remove local/remote do jogo — apenas entidades auxiliares
+        self._entities = [
+            e for e in self._entities
+            if e.alive or e is self._local_entity or e is self._remote_entity
+        ]
 
     def _update_host(self, dt: float):
         # 1. Input local → entidade local
@@ -192,10 +197,13 @@ class MultiplayerGameplayState(BaseState):
             self._local_entity.update_input(keys)
 
         # 2. Input da rede → entidade remota no host
+        # Cacheia o último input recebido para reaplicar quando não chega pacote novo,
+        # garantindo que vel.x seja zerado ao soltar a tecla.
         client_msg = self.net.update(dt)
         if client_msg:
-            if isinstance(self._remote_entity, (Player, Boss)):
-                self._remote_entity.apply_net_input(client_msg)
+            self._last_client_input = client_msg
+        if self._last_client_input and isinstance(self._remote_entity, (Player, Boss)):
+            self._remote_entity.apply_net_input(self._last_client_input)
 
         if not self.net.connected:
             self._disconnected = True
@@ -209,41 +217,34 @@ class MultiplayerGameplayState(BaseState):
         for e in self._entities:
             e.update(dt)
 
-        # 5. Envia snapshot ao cliente
+        # 5. Respawn: se caiu abaixo do mundo, volta ao spawn com penalidade de HP
+        self._check_respawn()
+
+        # 6. Envia snapshot ao cliente
         self.net.broadcast_state(self._build_snapshot())
 
     def _update_client(self, dt: float):
-        # 1. Predição local
-        keys = pygame.key.get_pressed()
-        if isinstance(self._local_entity, Player):
-            self._local_entity.update_input(keys)
-        elif isinstance(self._local_entity, Boss):
-            inp = self._local_entity.get_input_snapshot()
-            self._local_entity.apply_net_input(inp)
-
-        # 2. Envia input para o host
+        # 1. Envia input para o host (host é autoritativo — sem predição local)
         self.net.send_input(self._collect_net_input())
 
-        # 3. Recebe estado autoritativo
+        # 2. Recebe estado autoritativo
         state, events = self.net.update(dt)
 
         if not self.net.connected:
             self._disconnected = True
             return
 
-        # 4. Aplica estado à entidade remota e reconcilia local com p2
+        # 3. Aplica estado à entidade remota e reconcilia local com p2
         if state:
             if isinstance(self._remote_entity, RemotePlayer):
                 self._remote_entity.apply_state(state.get("p1", {}))
             self._reconcile_local(state.get("p2", {}))
 
-        # 5. Processa eventos críticos
+        # 4. Processa eventos críticos
         for ev in events:
             self._apply_network_event(ev)
 
-        # 6. Física local apenas para predição
-        self._physics.update([self._local_entity], dt)
-
+        # 5. Update lógico — animação, timers (sem física: host é autoritativo)
         for e in self._entities:
             e.update(dt)
 
@@ -269,20 +270,41 @@ class MultiplayerGameplayState(BaseState):
             "p2": self._entity_state(self._remote_entity),
         }
 
+    def _check_respawn(self):
+        """Host: reposiciona entidades que caíram abaixo do mundo."""
+        sp1, sp2 = self._get_spawns()
+        spawns = {
+            self._local_entity:  sp1,
+            self._remote_entity: sp2,
+        }
+        for entity, sp in spawns.items():
+            if entity and entity.pos.y > self._world_h + 300:
+                entity.pos.x = float(sp[0])
+                entity.pos.y = float(sp[1])
+                entity.vel.x = 0.0
+                entity.vel.y = 0.0
+                entity.alive = True
+                hp = entity.get(Health)
+                if hp:
+                    hp.current = max(10, hp.current - 20)
+                    hp.invicible = 1.0
+
     def _reconcile_local(self, s: dict):
-        """Corrige posição do cliente com estado autoritativo do host (p2)."""
+        """
+        Aplica estado autoritativo do host à entidade local do cliente.
+        Em LAN a latência é < 5 ms — snapeia direto sem threshold para
+        eliminar qualquer acúmulo de desincronização.
+        """
         e = self._local_entity
         if not e or not s:
             return
-        dx = abs(e.pos.x - s.get("x", e.pos.x))
-        dy = abs(e.pos.y - s.get("y", e.pos.y))
-        if dx > 120 or dy > 120:
-            e.pos.x = s["x"]
-            e.pos.y = s["y"]
-        elif dx > 8 or dy > 8:
-            e.pos.x += (s["x"] - e.pos.x) * 0.3
-            e.pos.y += (s["y"] - e.pos.y) * 0.3
+        e.pos.x = s.get("x", e.pos.x)
+        e.pos.y = s.get("y", e.pos.y)
+        e.vel.x = s.get("vx", e.vel.x)
         e.vel.y = s.get("vy", e.vel.y)
+        hp = e.get(Health)
+        if hp and "hp" in s:
+            hp.current = s["hp"]
 
     def _entity_state(self, e) -> dict:
         if e is None:
@@ -346,6 +368,7 @@ class MultiplayerGameplayState(BaseState):
             self._tilemap.draw(surface, self._camera)
 
         self._render.draw_entities(surface, self._entities, self._camera)
+        self._draw_player_labels(surface)
 
         if self._level:
             self._level.draw_layer(surface, "foreground", self._camera)
@@ -357,6 +380,18 @@ class MultiplayerGameplayState(BaseState):
             self._draw_pause_overlay(surface)
         elif self._disconnected:
             self._draw_disconnect_overlay(surface)
+
+    def _draw_player_labels(self, surface):
+        f = pygame.font.SysFont("consolas,monospace", 14, bold=True)
+        for entity, label, color in (
+            (self._local_entity,  "VOCÊ",   (80, 255, 120)),
+            (self._remote_entity, "P1" if self.is_host else "P2", (100, 180, 255)),
+        ):
+            if entity is None:
+                continue
+            sx, sy = self._camera.apply(entity.pos)
+            txt = f.render(label, True, color)
+            surface.blit(txt, (int(sx) - txt.get_width() // 2, int(sy) - 58))
 
     def _draw_hud(self, surface):
         hp_local = self._local_entity.get(Health) if self._local_entity else None

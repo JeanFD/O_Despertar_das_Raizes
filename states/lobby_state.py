@@ -32,28 +32,35 @@ class LobbyState(BaseState):
 
     def _host_thread(self):
         from network.host import Host
+        from network.discovery import HostAnnouncer
         from settings import HOST_PORT
         try:
             ips = _get_lan_ips()
             ip_str = " / ".join(ips) if ips else "IP não detectado"
             self._status = (f"Aguardando conexão na porta {HOST_PORT}...\n"
-                            f"Seu IP na rede: {ip_str}")
+                            f"Seu IP na rede: {ip_str}\n"
+                            "O outro jogador pode te encontrar automaticamente.")
         except Exception:
             self._status = "Aguardando conexão..."
+
+        announcer = HostAnnouncer(self.game_mode)
 
         try:
             net = Host(self.game_mode)
         except OSError as e:
+            announcer.close()
             self._error = (f"Não foi possível abrir a porta {HOST_PORT} UDP.\n"
                            f"Erro: {e}\n"
                            "Tente fechar e reabrir o jogo.")
             return
 
         if net.wait_for_client(timeout=120.0):
+            announcer.close()
             self._net = net
             self._status = "Cliente conectado! Iniciando..."
             self._ready = True
         else:
+            announcer.close()
             net.close()
             self._error = "Tempo esgotado. Nenhum cliente se conectou."
 
