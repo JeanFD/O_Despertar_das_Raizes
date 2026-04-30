@@ -49,6 +49,8 @@ class MultiplayerGameplayState(BaseState):
         self._level    = None
 
         self._disconnected = False
+        self._paused = False
+        self._jump_pressed = False
         self._tick = 0
 
     # ── Inicialização ─────────────────────────────────────────────────────────
@@ -147,12 +149,22 @@ class MultiplayerGameplayState(BaseState):
         if event.type != pygame.KEYDOWN:
             return
         key = event.key
+
         if key == pygame.K_ESCAPE:
-            self._quit_to_menu()
+            if self._disconnected:
+                self._quit_to_menu()
+            else:
+                self._paused = not self._paused
+            return
+
+        if self._paused:
+            if key == pygame.K_q:
+                self._quit_to_menu()
             return
 
         if isinstance(self._local_entity, Player):
             if key in (pygame.K_SPACE, pygame.K_UP, pygame.K_w):
+                self._jump_pressed = True
                 self._local_entity.jump_buffer = 0.10
         elif isinstance(self._local_entity, Boss):
             if key == pygame.K_UP:
@@ -161,7 +173,7 @@ class MultiplayerGameplayState(BaseState):
     # ── Update ────────────────────────────────────────────────────────────────
 
     def update(self, dt: float):
-        if self._disconnected:
+        if self._disconnected or self._paused:
             return
         self._tick += 1
 
@@ -219,9 +231,11 @@ class MultiplayerGameplayState(BaseState):
             self._disconnected = True
             return
 
-        # 4. Aplica estado à entidade remota
-        if state and isinstance(self._remote_entity, RemotePlayer):
-            self._remote_entity.apply_state(state.get("p1", {}))
+        # 4. Aplica estado à entidade remota e reconcilia local com p2
+        if state:
+            if isinstance(self._remote_entity, RemotePlayer):
+                self._remote_entity.apply_state(state.get("p1", {}))
+            self._reconcile_local(state.get("p2", {}))
 
         # 5. Processa eventos críticos
         for ev in events:
@@ -237,11 +251,12 @@ class MultiplayerGameplayState(BaseState):
         if isinstance(self._local_entity, Boss):
             return self._local_entity.get_input_snapshot()
         keys = pygame.key.get_pressed()
-        # "ju" = jump, "at" = attack, "da" = dash, "l"/"r" = direção
+        ju = int(self._jump_pressed)
+        self._jump_pressed = False
         return {
-            "l":  int(keys[pygame.K_a]      or keys[pygame.K_LEFT]),
-            "r":  int(keys[pygame.K_d]      or keys[pygame.K_RIGHT]),
-            "ju": int(keys[pygame.K_SPACE]  or keys[pygame.K_w]),
+            "l":  int(keys[pygame.K_a]     or keys[pygame.K_LEFT]),
+            "r":  int(keys[pygame.K_d]     or keys[pygame.K_RIGHT]),
+            "ju": ju,
             "da": int(keys[pygame.K_LSHIFT]),
             "at": int(keys[pygame.K_z]),
         }
@@ -253,6 +268,21 @@ class MultiplayerGameplayState(BaseState):
             "p1": self._entity_state(self._local_entity),
             "p2": self._entity_state(self._remote_entity),
         }
+
+    def _reconcile_local(self, s: dict):
+        """Corrige posição do cliente com estado autoritativo do host (p2)."""
+        e = self._local_entity
+        if not e or not s:
+            return
+        dx = abs(e.pos.x - s.get("x", e.pos.x))
+        dy = abs(e.pos.y - s.get("y", e.pos.y))
+        if dx > 120 or dy > 120:
+            e.pos.x = s["x"]
+            e.pos.y = s["y"]
+        elif dx > 8 or dy > 8:
+            e.pos.x += (s["x"] - e.pos.x) * 0.3
+            e.pos.y += (s["y"] - e.pos.y) * 0.3
+        e.vel.y = s.get("vy", e.vel.y)
 
     def _entity_state(self, e) -> dict:
         if e is None:
@@ -323,7 +353,9 @@ class MultiplayerGameplayState(BaseState):
         self._draw_hud(surface)
         self._draw_net_info(surface)
 
-        if self._disconnected:
+        if self._paused:
+            self._draw_pause_overlay(surface)
+        elif self._disconnected:
             self._draw_disconnect_overlay(surface)
 
     def _draw_hud(self, surface):
@@ -353,6 +385,18 @@ class MultiplayerGameplayState(BaseState):
         role = "HOST" if self.is_host else "CLIENT"
         txt = f.render(f"{role}  {self.game_mode.upper()}", True, (80, 80, 100))
         surface.blit(txt, (W - txt.get_width() - 8, H - 20))
+
+    def _draw_pause_overlay(self, surface):
+        W, H = surface.get_size()
+        ov = pygame.Surface((W, H), pygame.SRCALPHA)
+        ov.fill((0, 0, 0, 160))
+        surface.blit(ov, (0, 0))
+        f1 = pygame.font.SysFont("consolas,monospace", 42)
+        f2 = pygame.font.SysFont("consolas,monospace", 22)
+        t1 = f1.render("PAUSADO", True, (255, 255, 255))
+        t2 = f2.render("ESC — continuar     Q — sair ao menu", True, (180, 180, 180))
+        surface.blit(t1, (W // 2 - t1.get_width() // 2, H // 2 - 50))
+        surface.blit(t2, (W // 2 - t2.get_width() // 2, H // 2 + 16))
 
     def _draw_disconnect_overlay(self, surface):
         W, H = surface.get_size()
