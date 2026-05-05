@@ -17,14 +17,16 @@ DASH_CD    = 0.80
 ATTACK_TIME = 0.18
 
 class Player(Entity):
-    def __init__(self, game, x, y):
+    def __init__(self, game, x, y, team_id: str = "player"):
         super().__init__(game, x, y)
-        
+
+        self.team = team_id
+
         from components.health import Health
         self.hp = self.add(Health, 100)
 
         from components.hitbox import Hitbox
-        self.attack_hb = self.add(Hitbox, 20, -32, 26, 32, damage=20, team="player", knockback=250)
+        self.attack_hb = self.add(Hitbox, 20, -32, 26, 32, damage=20, team=team_id, knockback=250)
 
         self.attack_timer = 0.0
 
@@ -124,6 +126,28 @@ class Player(Entity):
                     self.jumps_left -= 1
             self.jump_buffer = 0.0
             self.coyote_timer = 0.0
+
+    def reset_for_round(self, x: float, y: float, facing: int = 1):
+        """Reposiciona o player para o início de um round de versus.
+
+        Não altera abilities (configuração externa do modo), só estado volátil:
+        posição, velocidade, HP, timers de ataque/dash, buffers de pulo.
+        """
+        self.pos.x = float(x)
+        self.pos.y = float(y)
+        self.vel.x = 0.0
+        self.vel.y = 0.0
+        self.facing = facing
+        self.alive = True
+        self.hp.current = self.hp.max_hp
+        self.hp.invicible = 0.5
+        self.attack_timer = 0.0
+        self.attack_hb.active = False
+        self.dash_timer = 0.0
+        self.dash_cd = 0.0
+        self.jump_buffer = 0.0
+        self.coyote_timer = 0.0
+        self.jumps_left = 1 if self.abilities.get("double_jump") else 0
 
     def apply_net_input(self, inp: dict):
         """Aplica dict de inputs recebido pela rede. Espelha update_input()."""

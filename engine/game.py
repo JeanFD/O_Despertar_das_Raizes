@@ -36,8 +36,17 @@ class Game:
         
 
     def run(self):
+        # Limite de dt por frame. Quando a janela perde foco / muda de tela /
+        # o SO suspende o processo, clock.tick devolve um delta enorme na 1ª
+        # frame após o resume — isso bastava para os players atravessarem o
+        # chão (AABB simples sem sweep) e cair no ring-out. Capando em ~33 ms
+        # garantimos que cada passo de física move <1 tile e a colisão pega.
+        MAX_FRAME_DT = 1.0 / 30.0
+
         while self.running:
             dt = self.clock.tick(FPS) / 1000.0
+            if dt > MAX_FRAME_DT:
+                dt = MAX_FRAME_DT
 
             for event in pygame.event.get():
                 if event.type == pygame.QUIT:
