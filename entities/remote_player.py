@@ -44,7 +44,8 @@ class RemotePlayer(Entity):
             pass
 
     def apply_state(self, s: dict):
-        """Aplica snapshot recebido do host."""
+        """Aplica snapshot recebido do host. Host é autoritativo:
+        confiamos cegamente em alive/hp/posição."""
         self._target_x  = s.get("x", self._target_x)
         self._target_y  = s.get("y", self._target_y)
         self.vel.x      = s.get("vx", 0.0)
@@ -55,14 +56,26 @@ class RemotePlayer(Entity):
         if remote_hp is not None:
             self.hp.current = float(remote_hp)
 
+        # Sincroniza 'alive' com o snapshot. Sem isso, após uma morte/ring-out
+        # no round 1, o RemotePlayer ficava com alive=False permanentemente
+        # e o RenderSystem o ocultava no round 2 (player invisível).
+        if "alive" in s:
+            new_alive = bool(s["alive"])
+            # Reviveu: snap direto para o spawn, sem lerp do "cadáver".
+            if new_alive and not self.alive:
+                self.pos.x = self._target_x
+                self.pos.y = self._target_y
+            self.alive = new_alive
+
     def update(self, dt: float):
         alpha = min(1.0, LERP_SPEED * dt)
         self.pos.x += (self._target_x - self.pos.x) * alpha
         self.pos.y += (self._target_y - self.pos.y) * alpha
 
+        # NÃO sincroniza alive aqui a partir de hp — o host manda alive
+        # explícito via apply_state(). Inferir local levava ao bug do
+        # round 2 (alive ficava preso em False mesmo com hp resetado).
         self.hp.update(dt)
-        if self.hp.current <= 0:
-            self.alive = False
 
         if self._has_anim:
             self.anim.play(self._anim_name, flip_x=(self.facing == -1))

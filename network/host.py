@@ -61,7 +61,10 @@ class Host:
 
         self._retransmit_pending()
 
-        if self.connected and time.monotonic() - self._last_seen > NET_TIMEOUT:
+        # Timeout robusto: usa o último pacote QUALQUER recebido pela
+        # recv thread (inclusive PING/PONG). Assim freezes momentâneos do
+        # main loop não derrubam a conexão — heartbeats mantêm o peer vivo.
+        if self.connected and time.monotonic() - self.conn.last_recv_at > NET_TIMEOUT:
             self.connected = False
 
         return last_input

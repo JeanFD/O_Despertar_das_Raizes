@@ -12,13 +12,17 @@ MSG_PING         = "PING"
 MSG_PONG         = "PONG"
 MSG_DISCONNECT   = "BYE"
 
-MODE_COOP = "coop"
-MODE_BOSS = "boss"
+MODE_COOP   = "coop"
+MODE_BOSS   = "boss"
+MODE_VERSUS = "vs"
 
-EV_DAMAGED = "dmg"
-EV_DIED    = "died"
-EV_ABILITY = "ability"
-EV_PICKUP  = "pickup"
+EV_DAMAGED     = "dmg"
+EV_DIED        = "died"
+EV_ABILITY     = "ability"
+EV_PICKUP      = "pickup"
+EV_ROUND_START = "round_start"
+EV_ROUND_END   = "round_end"
+EV_MATCH_END   = "match_end"
 
 
 def encode(msg_type: str, **payload) -> bytes:

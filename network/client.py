@@ -70,7 +70,8 @@ class Client:
             elif t == MSG_DISCONNECT:
                 self.connected = False
 
-        if self.connected and time.monotonic() - self._last_seen > NET_TIMEOUT:
+        # Timeout robusto via recv thread (heartbeat-aware).
+        if self.connected and time.monotonic() - self.conn.last_recv_at > NET_TIMEOUT:
             self.connected = False
 
         return last_state, events

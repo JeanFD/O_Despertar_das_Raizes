@@ -7,7 +7,12 @@ from ui.menu_ui import (
 )
 
 _ITEMS_MAIN = ["Hospedar Partida", "Entrar na Partida", "Voltar"]
-_ITEMS_MODE = ["Co-op  (dois protagonistas)", "Boss Battle", "Voltar"]
+_ITEMS_MODE = [
+    "Co-op  (dois protagonistas)",
+    "Versus (1v1)",
+    "Boss Battle",
+    "Voltar",
+]
 
 
 class MultiplayerMenu(BaseState):
@@ -119,6 +124,9 @@ class MultiplayerMenu(BaseState):
                 self._game_mode = "coop"
                 self._launch_host()
             elif self._sel == 1:
+                self._game_mode = "vs"
+                self._launch_host()
+            elif self._sel == 2:
                 self._game_mode = "boss"
                 self._launch_host()
             else:

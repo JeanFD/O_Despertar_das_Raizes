@@ -100,13 +100,22 @@ class LobbyState(BaseState):
             self._launch_gameplay()
 
     def _launch_gameplay(self):
-        from states.multiplayer_gameplay import MultiplayerGameplayState
-        state = MultiplayerGameplayState(
-            self.game,
-            net=self._net,
-            is_host=self.is_host,
-            game_mode=self.game_mode,
-        )
+        if self.game_mode == "vs":
+            from states.versus_gameplay import VersusGameplayState
+            state = VersusGameplayState(
+                self.game,
+                net=self._net,
+                is_host=self.is_host,
+                best_of=3,
+            )
+        else:
+            from states.multiplayer_gameplay import MultiplayerGameplayState
+            state = MultiplayerGameplayState(
+                self.game,
+                net=self._net,
+                is_host=self.is_host,
+                game_mode=self.game_mode,
+            )
         self.game.states.change(state)
 
     def draw(self, surface):

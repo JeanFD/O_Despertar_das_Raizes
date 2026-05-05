@@ -33,6 +33,7 @@ class Boss(Entity):
     def __init__(self, game, x: float, y: float):
         super().__init__(game, x, y)
 
+        self.team = "enemy"
         self.add(PhysicsBody, BOSS_W, BOSS_H)
         self.hp = self.add(Health, BOSS_HP)
         self._hb = self.add(
