@@ -7,6 +7,7 @@ from components.hitbox import Hitbox
 class Scarecrow(Entity):
     def __init__(self, game, x, y):
         super().__init__(game, x, y)
+        self.team = "enemy"
         self.body = self.add(PhysicsBody, 32, 50)
         self.hp = self.add(Health, 30)
         self.touch_hb = self.add(Hitbox, -16, -24, 32, 50,
