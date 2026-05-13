@@ -35,3 +35,6 @@ class CombatSystem:
                     kb = (dir_x * ahb.knockback, -200)
                     dhp.take_damage(ahb.damage, kb)
                     ahb.register_hit(id(de))
+                    if hasattr(ae, 'lifetime'):
+                        ae.alive = False
+

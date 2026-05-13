@@ -3,7 +3,7 @@
   "music_volume": 0.6,
   "sfx_volume": 0.6,
   "fullscreen": true,
-  "screen_shake": true,
+  "screen_shake": false,
   "show_fps": true,
   "last_save_slot": 0
 }
