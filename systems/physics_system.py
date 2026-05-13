@@ -19,6 +19,8 @@ class PhysicsSystem:
             self._move_y(e, body, dt)
 
     def _gravity(self, e, dt):
+        if getattr(e, 'plunge_timer', 0) > 0:
+            return
         e.vel.y = min(e.vel.y + GRAVITY * dt, MAX_FALL)
     
     def _move_x(self, e, body, dt):

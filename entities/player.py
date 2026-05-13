@@ -13,6 +13,12 @@ DASH_SPEED = 550
 DASH_TIME  = 0.18
 DASH_CD    = 0.80
 
+DASH_DOWN_SPEED = 1200
+PLUNGE_HOP_FORCE = -500
+PLUNGE_DAMAGE = 35
+PLUNGE_RADIUS = 40
+PLUNGE_CD = 0.6
+
 ATTACK_TIME = 0.18
 
 class Player(Entity):
@@ -45,15 +51,21 @@ class Player(Entity):
 
         self.dash_timer = 0.0
         self.dash_cd    = 0.0
+
+        self.plunge_timer = 0.0
+        self.plunge_cd = 0.0
+        self.plunge_pending = False
+        self.plunge_landing = False
         
         self.wall_jump_lockout = 0.0
 
         self.jumps_left = 1
 
         self.abilities = {
-            "double_jump": False,
-            "dash": False,
+            "double_jump": True,
+            "dash": True,
             "wall_jump": True,
+            "plunge": True,
         }
 
     def update_input(self, keys):
@@ -70,19 +82,36 @@ class Player(Entity):
                 self.vel.x = -MOVE_SPEED
                 self.facing = -1
                 
-        if keys[pygame.K_LSHIFT] and self.dash_cd <= 0 and self.abilities["dash"]:
+        keys_down_pressed = keys[pygame.K_DOWN] or keys[pygame.K_s]
+        if (keys[pygame.K_LSHIFT] and keys_down_pressed
+                and self.plunge_timer <= 0 and self.plunge_cd <= 0
+                and not self.plunge_pending
+                and self.abilities.get("plunge")):
+            if self.body.on_ground:
+                self.vel.y = PLUNGE_HOP_FORCE
+                self.vel.x = 0
+                self.plunge_pending = True
+            else:
+                self.plunge_timer = 0.5
+                self.vel.y = DASH_DOWN_SPEED
+                self.vel.x = 0
+        elif (keys[pygame.K_LSHIFT] and self.dash_cd <= 0
+              and not self.plunge_pending and self.plunge_timer <= 0
+              and self.abilities["dash"]):
             self.dash_timer = DASH_TIME
             self.dash_cd    = DASH_CD
             self.vel.x      = self.facing * DASH_SPEED
             self.vel.y      = 0
-            
+        
         if keys[pygame.K_z] or keys[pygame.K_j]:
             if self.attack_timer <= 0:
                 self.attack_timer = ATTACK_TIME
+        
 
     def update(self, dt):
         self.dash_timer = max(0.0, self.dash_timer - dt)
         self.dash_cd = max(0.0, self.dash_cd - dt)
+        self.plunge_cd = max(0.0, self.plunge_cd - dt)
         self.wall_jump_lockout = max(0.0, self.wall_jump_lockout - dt)
 
         self.attack_timer = max(0.0, self.attack_timer - dt)
@@ -97,8 +126,15 @@ class Player(Entity):
         if body.on_wall and not body.on_ground and self.vel.y > 0:
             self.vel.y = min(self.vel.y, 90)
 
-        if self.dash_timer > 0:
+        if self.dash_timer > 0 and self.plunge_timer <= 0:
             self.vel.y = 0
+
+        # Hop do chão: converte para plunge quando atingir o apex (vel.y >= 0)
+        if self.plunge_pending and self.vel.y >= 0:
+            self.plunge_pending = False
+            self.plunge_timer = 0.5
+            self.vel.y = DASH_DOWN_SPEED
+            self.vel.x = 0
 
         if not body.on_ground:
             anim = "jump" if self.vel.y < 0 else "fall"
@@ -108,6 +144,17 @@ class Player(Entity):
             anim = "idle"
         self.anim.play(anim, flip_x=(self.facing == -1))
         self.anim.update(dt)
+
+        if self.plunge_timer > 0 and self.body.on_ground:
+            self.plunge_timer = 0
+            self.plunge_cd = PLUNGE_CD
+            self.plunge_landing = True
+            self._trigger_plunge_landing()
+
+
+        if self.plunge_timer > 0:
+            self.plunge_timer -= dt
+
 
     def _update_jump(self, dt):
         body = self.body
@@ -188,3 +235,13 @@ class Player(Entity):
 
     def draw(self, surface, camera):
         self.anim.draw(surface, self.pos, camera)
+
+    def _trigger_plunge_landing(self):
+      """Cria hitbox de área quando o plunge pousa."""
+      # Ajusta a hitbox existente para cobrir área maior por 1 frame
+      self.attack_hb.offset_x = 0          # centraliza
+      self.attack_hb.width = PLUNGE_RADIUS * 2
+      self.attack_hb.damage = PLUNGE_DAMAGE
+      self.attack_hb.active = True
+      self.attack_timer = 0.08             # dura 2 frames (~0.08s)
+      # Restaura hitbox normal após o timer expirar (no update já faz isso)
