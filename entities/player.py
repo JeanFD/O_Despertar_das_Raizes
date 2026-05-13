@@ -20,6 +20,7 @@ PLUNGE_RADIUS = 40
 PLUNGE_CD = 0.6
 
 ATTACK_TIME = 0.18
+RANGED_CD = 0.7
 
 class Player(Entity):
     def __init__(self, game, x, y, team_id: str = "player"):
@@ -52,6 +53,9 @@ class Player(Entity):
         self.dash_timer = 0.0
         self.dash_cd    = 0.0
 
+        self.ranged_cd = 0.0
+        self._spawn_projectile_callback = False
+
         self.plunge_timer = 0.0
         self.plunge_cd = 0.0
         self.plunge_pending = False
@@ -66,6 +70,7 @@ class Player(Entity):
             "dash": True,
             "wall_jump": True,
             "plunge": True,
+            "ranged": True,
         }
 
     def update_input(self, keys):
@@ -106,11 +111,17 @@ class Player(Entity):
         if keys[pygame.K_z] or keys[pygame.K_j]:
             if self.attack_timer <= 0:
                 self.attack_timer = ATTACK_TIME
+
+        if (keys[pygame.K_x] or keys[pygame.K_k]):
+            if self.ranged_cd <= 0 and self.abilities.get("ranged"):
+                self.ranged_cd = RANGED_CD
+                self._spawn_projectile_callback = True
         
 
     def update(self, dt):
         self.dash_timer = max(0.0, self.dash_timer - dt)
         self.dash_cd = max(0.0, self.dash_cd - dt)
+        self.ranged_cd = max(0.0, self.ranged_cd - dt)
         self.plunge_cd = max(0.0, self.plunge_cd - dt)
         self.wall_jump_lockout = max(0.0, self.wall_jump_lockout - dt)
 
