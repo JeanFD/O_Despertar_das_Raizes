@@ -205,6 +205,8 @@ class MultiplayerGameplayState(BaseState):
         if self._last_client_input and isinstance(self._remote_entity, (Player, Boss)):
             self._remote_entity.apply_net_input(self._last_client_input)
 
+        self._spawn_pending_projectiles()
+
         if not self.net.connected:
             self._disconnected = True
             return
@@ -248,18 +250,33 @@ class MultiplayerGameplayState(BaseState):
         for e in self._entities:
             e.update(dt)
 
+    def _spawn_pending_projectiles(self):
+        from entities.projectile import Projectile
+        for p in (self._local_entity, self._remote_entity):
+            if isinstance(p, Player) and getattr(p, '_spawn_projectile_callback', False):
+                p._spawn_projectile_callback = False
+                self._entities.append(
+                    Projectile(game=self.game, x=p.pos.x, y=p.pos.y,
+                               direction=p.facing, team=p.team)
+                )
+
     def _collect_net_input(self) -> dict:
         if isinstance(self._local_entity, Boss):
             return self._local_entity.get_input_snapshot()
         keys = pygame.key.get_pressed()
         ju = int(self._jump_pressed)
         self._jump_pressed = False
+        down = keys[pygame.K_s] or keys[pygame.K_DOWN]
+        shift = keys[pygame.K_LSHIFT]
         return {
             "l":  int(keys[pygame.K_a]     or keys[pygame.K_LEFT]),
             "r":  int(keys[pygame.K_d]     or keys[pygame.K_RIGHT]),
             "ju": ju,
-            "da": int(keys[pygame.K_LSHIFT]),
+            "da": int(shift and not down),
             "at": int(keys[pygame.K_z]),
+            "rn": int(keys[pygame.K_x] or keys[pygame.K_k]),
+            "pl": int(shift and down),
+            "pa": int(keys[pygame.K_c] or keys[pygame.K_l]),
         }
 
     # ── Snapshot ──────────────────────────────────────────────────────────────

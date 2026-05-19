@@ -31,7 +31,25 @@ class CombatSystem:
                     continue
 
                 if dbody and ahb.rect.colliderect(dbody.rect):
+                    if getattr(de, "parry_timer", 0) > 0:
+                        de.parry_timer = 0
+                        de.hp.invicible = getattr(de, "PARRY_IFRAMES", 0.5)
+
+                        if hasattr(ae, "vel"):
+                            ae.vel.x = -ae.vel.x * 0.3 if ae.vel.x else 0
+                        if hasattr(ae, "stun_timer"):
+                            ae.stun_timer = 0.6
+                        atk_hp = ae.get(Health)
+                        if atk_hp:
+                            atk_hp.take_damage(30)
+                        ahb.register_hit(id(de))
+                        de.game.events.emit("parry_success", entity=de)
+                        continue
+
                     dir_x = 1 if de.pos.x > ae.pos.x else -1
                     kb = (dir_x * ahb.knockback, -200)
                     dhp.take_damage(ahb.damage, kb)
                     ahb.register_hit(id(de))
+                    if hasattr(ae, 'lifetime'):
+                        ae.alive = False
+
