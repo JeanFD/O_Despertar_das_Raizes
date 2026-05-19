@@ -22,6 +22,13 @@ PLUNGE_CD = 0.6
 ATTACK_TIME = 0.18
 RANGED_CD = 0.7
 
+ATTACK_HB_OX = 20
+ATTACK_HB_OY = -32
+ATTACK_HB_W = 26
+ATTACK_HB_H = 32
+ATTACK_HB_DAMAGE = 20
+ATTACK_HB_KNOCKBACK = 250
+
 class Player(Entity):
     def __init__(self, game, x, y, team_id: str = "player"):
         super().__init__(game, x, y)
@@ -128,7 +135,17 @@ class Player(Entity):
         self.attack_timer = max(0.0, self.attack_timer - dt)
         self.attack_hb.active = self.attack_timer > 0
 
-        self.attack_hb.offset.x = 20 if self.facing == 1 else -56
+        # Restaura hitbox normal após o shockwave do plunge terminar
+        if self.plunge_landing and self.attack_timer <= 0:
+            self.plunge_landing = False
+            self.attack_hb.size = (ATTACK_HB_W, ATTACK_HB_H)
+            self.attack_hb.offset.y = ATTACK_HB_OY
+            self.attack_hb.damage = ATTACK_HB_DAMAGE
+            self.attack_hb.knockback = ATTACK_HB_KNOCKBACK
+
+        # Enquanto o shockwave estiver ativo, não sobrescreve offset.x baseado em facing
+        if not self.plunge_landing:
+            self.attack_hb.offset.x = ATTACK_HB_OX if self.facing == 1 else -(ATTACK_HB_OX + ATTACK_HB_W + 10)
 
         self._update_jump(dt)
         self.hp.update(dt)
@@ -248,11 +265,12 @@ class Player(Entity):
         self.anim.draw(surface, self.pos, camera)
 
     def _trigger_plunge_landing(self):
-      """Cria hitbox de área quando o plunge pousa."""
-      # Ajusta a hitbox existente para cobrir área maior por 1 frame
-      self.attack_hb.offset_x = 0          # centraliza
-      self.attack_hb.width = PLUNGE_RADIUS * 2
-      self.attack_hb.damage = PLUNGE_DAMAGE
-      self.attack_hb.active = True
-      self.attack_timer = 0.08             # dura 2 frames (~0.08s)
-      # Restaura hitbox normal após o timer expirar (no update já faz isso)
+        """Shockwave de área quando o plunge pousa. Restauração no update."""
+        body_half = 12  # PhysicsBody width 24 / 2
+        self.attack_hb.offset.x = body_half - PLUNGE_RADIUS
+        self.attack_hb.offset.y = -16
+        self.attack_hb.size = (PLUNGE_RADIUS * 2, 16)
+        self.attack_hb.damage = PLUNGE_DAMAGE
+        self.attack_hb.knockback = 350
+        self.attack_hb.active = True
+        self.attack_timer = 0.08
