@@ -29,6 +29,12 @@ ATTACK_HB_H = 32
 ATTACK_HB_DAMAGE = 20
 ATTACK_HB_KNOCKBACK = 250
 
+PARRY_WINDOW = 0.20
+PARRY_CD = 1.0
+PARRY_STUN = 0.6
+PARRY_REFLECT = 30
+PARRY_IFRAMES = 0.5
+
 class Player(Entity):
     def __init__(self, game, x, y, team_id: str = "player"):
         super().__init__(game, x, y)
@@ -67,7 +73,21 @@ class Player(Entity):
         self.plunge_cd = 0.0
         self.plunge_pending = False
         self.plunge_landing = False
-        
+
+        self.parry_timer = 0.0
+        self.parry_cd = 0.0
+        self.stun_timer = 0.0
+
+        self._was_shift = False
+        self._was_parry = False
+        self._was_attack = False
+        self._was_ranged = False
+        self._net_was_da = False
+        self._net_was_pl = False
+        self._net_was_pa = False
+        self._net_was_at = False
+        self._net_was_rn = False
+
         self.wall_jump_lockout = 0.0
 
         self.jumps_left = 1
@@ -78,12 +98,31 @@ class Player(Entity):
             "wall_jump": True,
             "plunge": True,
             "ranged": True,
+            "parry": True
         }
 
     def update_input(self, keys):
+        # Edge detection (one-shot por aperto) — atualizar SEMPRE,
+        # mesmo durante stun/dash, para não disparar ao soltar o bloqueio.
+        shift_held = keys[pygame.K_LSHIFT]
+        parry_held = keys[pygame.K_c] or keys[pygame.K_l]
+        attack_held = keys[pygame.K_z] or keys[pygame.K_j]
+        ranged_held = keys[pygame.K_x] or keys[pygame.K_k]
+        shift_edge = shift_held and not self._was_shift
+        parry_edge = parry_held and not self._was_parry
+        attack_edge = attack_held and not self._was_attack
+        ranged_edge = ranged_held and not self._was_ranged
+        self._was_shift = shift_held
+        self._was_parry = parry_held
+        self._was_attack = attack_held
+        self._was_ranged = ranged_held
+
+        if self.stun_timer > 0:
+            return
+
         if self.dash_timer > 0:
             return
-        
+
         # TRAVA DE MOVIMENTO: Só obedece as setas se não estiver no meio de um wall jump
         if self.wall_jump_lockout <= 0:
             self.vel.x = 0
@@ -93,9 +132,9 @@ class Player(Entity):
             if keys[pygame.K_LEFT] or keys[pygame.K_a]:
                 self.vel.x = -MOVE_SPEED
                 self.facing = -1
-                
+
         keys_down_pressed = keys[pygame.K_DOWN] or keys[pygame.K_s]
-        if (keys[pygame.K_LSHIFT] and keys_down_pressed
+        if (shift_edge and keys_down_pressed
                 and self.plunge_timer <= 0 and self.plunge_cd <= 0
                 and not self.plunge_pending
                 and self.abilities.get("plunge")):
@@ -107,22 +146,24 @@ class Player(Entity):
                 self.plunge_timer = 0.5
                 self.vel.y = DASH_DOWN_SPEED
                 self.vel.x = 0
-        elif (keys[pygame.K_LSHIFT] and self.dash_cd <= 0
+        elif (shift_edge and self.dash_cd <= 0
               and not self.plunge_pending and self.plunge_timer <= 0
               and self.abilities["dash"]):
             self.dash_timer = DASH_TIME
             self.dash_cd    = DASH_CD
             self.vel.x      = self.facing * DASH_SPEED
             self.vel.y      = 0
-        
-        if keys[pygame.K_z] or keys[pygame.K_j]:
-            if self.attack_timer <= 0:
-                self.attack_timer = ATTACK_TIME
 
-        if (keys[pygame.K_x] or keys[pygame.K_k]):
-            if self.ranged_cd <= 0 and self.abilities.get("ranged"):
-                self.ranged_cd = RANGED_CD
-                self._spawn_projectile_callback = True
+        if attack_edge and self.attack_timer <= 0:
+            self.attack_timer = ATTACK_TIME
+
+        if ranged_edge and self.ranged_cd <= 0 and self.abilities.get("ranged"):
+            self.ranged_cd = RANGED_CD
+            self._spawn_projectile_callback = True
+        if parry_edge:
+            if (self.parry_cd <= 0 and self.parry_timer <= 0 and self.abilities.get("parry")):
+                self.parry_timer = PARRY_WINDOW
+                self.parry_cd = PARRY_CD
         
 
     def update(self, dt):
@@ -131,6 +172,9 @@ class Player(Entity):
         self.ranged_cd = max(0.0, self.ranged_cd - dt)
         self.plunge_cd = max(0.0, self.plunge_cd - dt)
         self.wall_jump_lockout = max(0.0, self.wall_jump_lockout - dt)
+        self.parry_timer = max(0.0, self.parry_timer - dt)
+        self.parry_cd = max(0.0, self.parry_cd - dt)
+        self.stun_timer = max(0.0, self.stun_timer - dt)
 
         self.attack_timer = max(0.0, self.attack_timer - dt)
         self.attack_hb.active = self.attack_timer > 0
@@ -239,9 +283,31 @@ class Player(Entity):
         self.jump_buffer = 0.0
         self.coyote_timer = 0.0
         self.jumps_left = 1 if self.abilities.get("double_jump") else 0
+        self.parry_timer = 0.0
+        self.parry_cd = 0.0
+        self.stun_timer = 0.0
 
     def apply_net_input(self, inp: dict):
         """Aplica dict de inputs recebido pela rede. Espelha update_input()."""
+        # Edge detection — atualizar SEMPRE, mesmo durante stun/dash
+        da_held = bool(inp.get("da"))
+        pl_held = bool(inp.get("pl"))
+        pa_held = bool(inp.get("pa"))
+        at_held = bool(inp.get("at"))
+        rn_held = bool(inp.get("rn"))
+        da_edge = da_held and not self._net_was_da
+        pl_edge = pl_held and not self._net_was_pl
+        pa_edge = pa_held and not self._net_was_pa
+        at_edge = at_held and not self._net_was_at
+        rn_edge = rn_held and not self._net_was_rn
+        self._net_was_da = da_held
+        self._net_was_pl = pl_held
+        self._net_was_pa = pa_held
+        self._net_was_at = at_held
+        self._net_was_rn = rn_held
+
+        if self.stun_timer > 0:
+            return
         if self.dash_timer > 0:
             return
         self.vel.x = 0
@@ -251,18 +317,38 @@ class Player(Entity):
         if inp.get("l"):
             self.vel.x = -MOVE_SPEED
             self.facing = -1
-        if inp.get("da") and self.dash_cd <= 0 and self.abilities["dash"]:
+        if da_edge and self.dash_cd <= 0 and self.abilities["dash"]:
             self.dash_timer = DASH_TIME
             self.dash_cd    = DASH_CD
             self.vel.x      = self.facing * DASH_SPEED
             self.vel.y      = 0
-        if inp.get("at") and self.attack_timer <= 0:
+        if at_edge and self.attack_timer <= 0:
             self.attack_timer = ATTACK_TIME
         if inp.get("ju"):
             self.jump_buffer = JUMP_BUFFER
+        if rn_edge and self.ranged_cd <= 0 and self.abilities.get("ranged"):
+            self.ranged_cd = RANGED_CD
+            self._spawn_projectile_callback = True
+        if pl_edge and self.abilities.get("plunge"):
+            if self.plunge_timer <= 0 and self.plunge_cd <= 0 and not self.plunge_pending:
+                if self.body.on_ground:
+                    self.vel.y = PLUNGE_HOP_FORCE
+                    self.vel.x = 0
+                    self.plunge_pending = True
+                else:
+                    self.plunge_timer = 0.5
+                    self.vel.y = DASH_DOWN_SPEED
+                    self.vel.x = 0
+        if pa_edge and self.parry_cd <= 0 and self.parry_timer <= 0 and self.abilities.get("parry"):
+            self.parry_timer = PARRY_WINDOW
+            self.parry_cd = PARRY_CD
 
     def draw(self, surface, camera):
         self.anim.draw(surface, self.pos, camera)
+        if self.parry_timer > 0:
+            sx = int(self.pos.x - camera.offset.x) + 12
+            sy = int(self.pos.y - camera.offset.y) - 20
+            pygame.draw.circle(surface, (255, 255, 200), (sx, sy), 22, 2)
 
     def _trigger_plunge_landing(self):
         """Shockwave de área quando o plunge pousa. Restauração no update."""
