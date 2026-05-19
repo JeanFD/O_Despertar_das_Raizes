@@ -3,6 +3,7 @@ from settings import SCREEN_W, SCREEN_H
 from states.base_state import BaseState
 from entities.player import Player
 from entities.pickup import AbilityPickup
+from entities.projectile import Projectile
 from systems.physics_system import PhysicsSystem
 from world.tilemap import Tilemap
 from engine.camera import Camera
@@ -86,12 +87,18 @@ class GameplayState(BaseState):
     def update(self, dt):
         keys = pygame.key.get_pressed()
         self.player.update_input(keys)
+        if getattr(self.player, '_spawn_projectile_callback', False):
+            self.player._spawn_projectile_callback = False
+            proj = Projectile(x=self.player.pos.x, y=self.player.pos.y, direction=self.player.facing, team=self.player.team, game=self.game)
+            self.entities.append(proj)
         self.physics.update(self.entities, dt)
         self.combat.update(self.entities, dt)
         for e in self.entities:
             e.update(dt)
         self.entities = [e for e in self.entities if e.alive]
         self.camera.update(dt)
+
+        
 
     def draw(self, surface):
     # 1. Parallax

@@ -228,6 +228,8 @@ class VersusGameplayState(BaseState):
                 self._last_client_input = client_msg
             if self._last_client_input and isinstance(self._remote_entity, Player):
                 self._remote_entity.apply_net_input(self._last_client_input)
+
+            self._spawn_pending_projectiles()
         else:
             # Drena a fila para não acumular, mas zera velocidades
             self.net.update(dt)
@@ -318,6 +320,17 @@ class VersusGameplayState(BaseState):
         for e in self._entities:
             e.update(dt)
 
+    def _spawn_pending_projectiles(self):
+        from entities.projectile import Projectile
+        for p in (self._p1, self._p2):
+            if isinstance(p, Player) and getattr(p, '_spawn_projectile_callback', False):
+                p._spawn_projectile_callback = False
+                self._entities.append(
+                    Projectile(game=self.game, x=p.pos.x, y=p.pos.y,
+                               direction=p.facing, team=p.team)
+                )
+        self._entities = [e for e in self._entities if getattr(e, 'alive', True)]
+
     # ── Helpers ───────────────────────────────────────────────────────────────
 
     def _hp_of(self, e) -> float:
@@ -337,12 +350,17 @@ class VersusGameplayState(BaseState):
         keys = pygame.key.get_pressed()
         ju = int(self._jump_pressed)
         self._jump_pressed = False
+        down = keys[pygame.K_s] or keys[pygame.K_DOWN]
+        shift = keys[pygame.K_LSHIFT]
         return {
             "l":  int(keys[pygame.K_a]     or keys[pygame.K_LEFT]),
             "r":  int(keys[pygame.K_d]     or keys[pygame.K_RIGHT]),
             "ju": ju,
-            "da": int(keys[pygame.K_LSHIFT]),
+            "da": int(shift and not down),
             "at": int(keys[pygame.K_z]),
+            "rn": int(keys[pygame.K_x] or keys[pygame.K_k]),
+            "pl": int(shift and down),
+            "pa": int(keys[pygame.K_c] or keys[pygame.K_l]),
         }
 
     def _build_snapshot(self) -> dict:
