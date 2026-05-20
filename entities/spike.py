@@ -4,7 +4,7 @@ from components.physics_body import PhysicsBody
 from components.hitbox import Hitbox
 
 class Spike(Entity):
-    def __init__(self, game, x, y, x_min, x_max, speed=120):
+    def __init__(self, game, x, y, x_min, x_max, speed=200):
         super().__init__(game, x, y)
         self.body  = self.add(PhysicsBody, 32, 16)
         self.hb    = self.add(Hitbox, -16, -16, 32, 16,
