@@ -39,7 +39,7 @@ MAX_STAMINA   = 100.0
 # Sem regen passivo: a barra funciona como "mana/especial" — só enche
 # ao acertar um inimigo. Incentiva pressão ofensiva e evita usar abilidades
 # enquanto se foge. Começa no máximo para não punir o spawn.
-COST_DASH    = 18.0
+# Dash normal NÃO custa stamina (mobilidade básica, não habilidade especial).
 COST_PLUNGE  = 25.0
 COST_RANGED  = 15.0
 COST_PARRY   = 12.0
@@ -151,9 +151,9 @@ class Player(Entity):
             "double_jump": True,
             "dash": True,
             "wall_jump": True,
-            "plunge": True,
-            "ranged": True,
-            "parry": True
+            "plunge": False,
+            "ranged": False,
+            "parry": False
         }
 
     def update_input(self, keys):
@@ -205,9 +205,7 @@ class Player(Entity):
                 self.vel.x = 0
         elif (shift_edge and self.dash_cd <= 0
               and not self.plunge_pending and self.plunge_timer <= 0
-              and self.abilities["dash"]
-              and self.stamina >= COST_DASH):
-            self.stamina -= COST_DASH
+              and self.abilities["dash"]):
             self.dash_timer = DASH_TIME
             self.dash_cd    = DASH_CD
             self.vel.x      = self.facing * DASH_SPEED

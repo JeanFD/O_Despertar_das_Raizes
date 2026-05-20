@@ -14,11 +14,18 @@ class HUD:
         self._bar(surface, 20, 20, 200, 16,
                   self.player.hp.current, self.player.hp.max_hp,
                   (220, 50, 50), (60, 20, 20))
-        
+
+        # Barra de estamina (mais fina, logo abaixo da HP). Funciona como
+        # mana/especial: só enche ao acertar inimigos.
+        if hasattr(self.player, "stamina") and hasattr(self.player, "max_stamina"):
+            self._bar(surface, 20, 40, 200, 6,
+                      self.player.stamina, self.player.max_stamina,
+                      (90, 220, 230), (20, 40, 50))
+
         x = 20
         for name, unlocked in self.player.abilities.items():
             col = (200, 200, 60) if unlocked else (60, 60, 60)
-            pygame.draw.rect(surface, col, (x, 46, 18, 18),
+            pygame.draw.rect(surface, col, (x, 54, 18, 18),
                              0 if unlocked else 1)
             x += 24
 
