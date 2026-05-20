@@ -17,8 +17,12 @@ class GameplayState(BaseState):
         self.level = Level(self.game, "assets/maps/world.tmx")
 
         spawn = self.level.spawn_points.get("player", [{"x": 200, "y": 200}])[0]
-        self.player = Player(self.game, spawn["x"], spawn["y"])
+        self._spawn_xy = (float(spawn["x"]), float(spawn["y"]))
+        self.player = Player(self.game, *self._spawn_xy)
         self.entities = [self.player]
+        # Evita empilhar RespawnState múltiplas vezes (death dispara um frame
+        # antes da tela ser empurrada; sem flag, push repete a cada frame).
+        self._respawn_pushed = False
 
         from data.save_system import SaveSystem
         self.saves = SaveSystem(self.game)
@@ -91,6 +95,10 @@ class GameplayState(BaseState):
                 print("Saved!")
 
     def update(self, dt):
+        # Não processa input/física enquanto a tela de respawn estiver no topo.
+        if self._respawn_pushed:
+            return
+
         keys = pygame.key.get_pressed()
         self.player.update_input(keys)
         if getattr(self.player, '_spawn_projectile_callback', False):
@@ -101,8 +109,44 @@ class GameplayState(BaseState):
         self.combat.update(self.entities, dt)
         for e in self.entities:
             e.update(dt)
-        self.entities = [e for e in self.entities if e.alive]
+
+        # Queda fora do mundo equivale a morte. Define HP=0 antes do filtro
+        # para que o player saia da lista pelo mesmo caminho de "morreu por dano".
+        if self.player.pos.y > self.level.height + 300:
+            self.player.hp.current = 0
+            self.player.alive = False
+
+        # Mantém referência do player mesmo morto (não filtra ele aqui), só
+        # tira do loop de update. Isso garante que self.player ainda existe
+        # quando o callback de respawn for chamado para reposicioná-lo.
+        self.entities = [e for e in self.entities
+                         if e.alive or e is self.player]
+
+        if not self.player.alive and not self._respawn_pushed:
+            self._show_respawn_screen()
+
         self.camera.update(dt)
+
+    def _show_respawn_screen(self):
+        from states.respawn_state import RespawnState
+        self._respawn_pushed = True
+        self.game.states.push(RespawnState(
+            self.game,
+            on_respawn=self._respawn_player,
+            on_quit=self._quit_to_menu,
+        ))
+
+    def _respawn_player(self):
+        """Reposiciona o player no spawn original com HP/stamina cheios."""
+        x, y = self._spawn_xy
+        self.player.reset_for_round(x, y, facing=1)
+        if self.player not in self.entities:
+            self.entities.append(self.player)
+        self._respawn_pushed = False
+
+    def _quit_to_menu(self):
+        from states.main_menu import MainMenu
+        self.game.states.change(MainMenu(self.game))
 
         
 
