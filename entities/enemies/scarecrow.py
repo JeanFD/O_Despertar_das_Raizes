@@ -15,13 +15,14 @@ class Scarecrow(Entity):
                                  damage=5, team="enemy", knockback=150)
         self.touch_hb.active = True
 
-        self.hb_down = self.add(Hitbox, -48, -8, 200, 20,
-                                damage=12, team="enemy", knockback=500)
+        self.hb_down = self.add(Hitbox, -48, -10, 200, 24,
+                                damage=12, team="enemy", knockback=500, knockback_y=50)
         self.hb_down.active = False
 
         self.hb_front = self.add(Hitbox, 0, -64, 70, 64,
                                 damage=18, team="enemy", knockback=300)
         self.hb_front.active = False
+        self.team = "enemy"
 
         self.state       = "idle"
         self.timer       = 1.5
@@ -41,9 +42,10 @@ class Scarecrow(Entity):
 
     def update(self, dt):
         self.hp.update(dt)
-        self.touch_hb.tick(dt)
-        self.hb_down.tick(dt)
-        self.hb_front.tick(dt)
+
+        if self.pos.y > 1000:
+            self.kill()
+            return
 
         self.timer -= dt
 
@@ -121,9 +123,10 @@ class Scarecrow(Entity):
     def _update_attack_down(self, dt):
         # rasteira — parado durante o golpe
         self.vel.x = 0
-
+        
         if self.timer <= 0:
             self.hb_down.active = False
+            self.hb_down._cd.clear()  # limpa cooldowns ao desativar
             self.next_attack = None
             self._change_state("recovery")
 

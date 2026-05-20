@@ -10,7 +10,15 @@ class Entity:
 
     def add(self, cls, *args, **kwargs):
         comp = cls(self, *args, **kwargs)
-        self._components[cls] = comp
+        # se já existe esse tipo, guarda como lista
+        if cls in self._components:
+            existing = self._components[cls]
+            if isinstance(existing, list):
+                existing.append(comp)
+            else:
+                self._components[cls] = [existing, comp]
+        else:
+            self._components[cls] = comp
         return comp
     
     def get(self, cls):

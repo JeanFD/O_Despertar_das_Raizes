@@ -4,22 +4,23 @@ from components.physics_body import PhysicsBody
 
 
 class CombatSystem:
-    """
-    Resolve dano por hitbox/hurtbox.
-
-    Regra de times:
-    - Se o hitbox e a entidade defensora têm `team` definido e iguais,
-      o golpe é ignorado (sem fogo amigo).
-    - Se algum dos lados não tem time, o comportamento antigo é mantido
-      (qualquer entidade que não seja o atacante pode receber dano).
-    """
-
     def update(self, entities, dt):
-        attackers = [(e, e.get(Hitbox)) for e in entities if e.get(Hitbox) and e.get(Hitbox).active]
-        defenders = [(e, e.get(Health), e.get(PhysicsBody)) for e in entities if e.get(Health)]
+        attackers = []
+        for e in entities:
+            if not e.alive:
+                continue
+            for hb in e._components.values():
+                items = hb if isinstance(hb, list) else [hb]
+                for item in items:
+                    if isinstance(item, Hitbox) and item.active:
+                        attackers.append((e, item))
+
+        defenders = [
+            (e, e.get(Health), e.get(PhysicsBody))
+            for e in entities if e.get(Health) and e.alive
+        ]
 
         for ae, ahb in attackers:
-            ahb.tick(dt)
             for de, dhp, dbody in defenders:
                 if de is ae:
                     continue
@@ -32,6 +33,9 @@ class CombatSystem:
 
                 if dbody and ahb.rect.colliderect(dbody.rect):
                     dir_x = 1 if de.pos.x > ae.pos.x else -1
-                    kb = (dir_x * ahb.knockback, -200)
+                    kb_y = -getattr(ahb, "knockback_y", 200)
+                    kb = (dir_x * ahb.knockback, kb_y)
                     dhp.take_damage(ahb.damage, kb)
-                    ahb.register_hit(id(de))
+                    ahb.register_hit(id(de), cd=0.6)
+
+            ahb.tick(dt)
