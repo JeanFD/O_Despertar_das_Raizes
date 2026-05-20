@@ -176,6 +176,16 @@ class VersusGameplayState(BaseState):
             self._local_entity, self._remote_entity = self._p2, self._p1
 
         self._entities = [self._p1, self._p2]
+        self._unlock_all_abilities()
+
+    def _unlock_all_abilities(self):
+        """Versus: ambos jogadores começam com todas as habilidades liberadas.
+        O default do Player.__init__ tem algumas em False (para progressão
+        single player); aqui forçamos paridade total."""
+        for e in (self._p1, self._p2):
+            if isinstance(e, Player):
+                for ability in e.abilities:
+                    e.abilities[ability] = True
 
     def _reset_round(self):
         """Host: reposiciona ambos os players para um novo round."""

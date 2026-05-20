@@ -151,6 +151,17 @@ class MultiplayerGameplayState(BaseState):
                 self._remote_entity = RemotePlayer(self.game, *sp1)
 
         self._entities = [self._local_entity, self._remote_entity]
+        self._unlock_all_abilities()
+
+    def _unlock_all_abilities(self):
+        """Multiplayer: todas as habilidades já liberadas, sem progressão de
+        pickups. O default do Player.__init__ deixa algumas em False para o
+        modo single (progressão pelos pickups do mapa); aqui sobrescrevemos
+        para garantir paridade total entre os jogadores."""
+        for e in (self._local_entity, self._remote_entity):
+            if isinstance(e, Player):
+                for ability in e.abilities:
+                    e.abilities[ability] = True
 
     # ── Eventos ───────────────────────────────────────────────────────────────
 
