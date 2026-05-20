@@ -93,7 +93,7 @@ class MainMenu(BaseState):
         draw_title(surface, "O DESPERTAR DAS RAIZES", sh // 6, size=48)
 
         font_sub = pygame.font.SysFont("consolas,monospace", 14)
-        sub = font_sub.render("Um tutorial que funciona de verdade", True, C_TEXT_DIM)
+        sub = font_sub.render("", True, C_TEXT_DIM)
         surface.blit(sub, (sw // 2 - sub.get_width() // 2, sh // 6 + 56))
 
         from ui.menu_ui import C_HIGHLIGHT, C_TEXT
