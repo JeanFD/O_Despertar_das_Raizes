@@ -137,11 +137,13 @@ class GameplayState(BaseState):
         ))
 
     def _respawn_player(self):
-        """Reposiciona o player no spawn original com HP/stamina cheios."""
+        """Reposiciona o player no spawn original com HP/stamina cheios e
+        reespawna inimigos/pickups do mapa, devolvendo o mundo ao estado
+        inicial. Mantém só o player na lista (reset duro do nível)."""
         x, y = self._spawn_xy
         self.player.reset_for_round(x, y, facing=1)
-        if self.player not in self.entities:
-            self.entities.append(self.player)
+        self.entities = [self.player]
+        self._spawn_map_entities()
         self._respawn_pushed = False
 
     def _quit_to_menu(self):

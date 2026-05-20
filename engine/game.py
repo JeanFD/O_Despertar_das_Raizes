@@ -6,7 +6,7 @@ class Game:
     def __init__(self):
         pygame.init()
         pygame.mixer.init(frequency=44100, size=-16, channels=2, buffer=512)
-        
+
         self.screen = pygame.display.set_mode((SCREEN_W, SCREEN_H))
         pygame.display.set_caption(TITLE)
         self.clock = pygame.time.Clock()
@@ -17,7 +17,7 @@ class Game:
 
         from engine.event_bus import EventBus
         self.events = EventBus()
-        
+
         from engine.state_machine import StateMachine
         self.states = StateMachine(self)
 
@@ -26,8 +26,23 @@ class Game:
 
         self._fps_font = pygame.font.SysFont("consolas,monospace", 16)
 
+        # Aplica o modo de tela conforme a setting persistida ANTES de
+        # empilhar o menu, para abrir já no modo correto sem flicker.
+        self.apply_fullscreen()
+
         from states.main_menu import MainMenu
         self.states.push(MainMenu(self))
+
+    def apply_fullscreen(self):
+        """(Re)cria a janela conforme a setting 'fullscreen'. Único ponto
+        que controla modo de tela e visibilidade do cursor — chamado no
+        startup e pelo SettingsState ao togglear."""
+        is_full = self.settings.get("fullscreen")
+        flags = pygame.FULLSCREEN if is_full else 0
+        self.screen = pygame.display.set_mode((SCREEN_W, SCREEN_H), flags)
+        # Em fullscreen o cursor sobre a área de jogo distrai e não tem
+        # função; em janela mantemos visível para arrastar/redimensionar.
+        pygame.mouse.set_visible(not is_full)
 
 
         

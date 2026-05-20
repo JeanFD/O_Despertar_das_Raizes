@@ -86,14 +86,7 @@ class SettingsState(BaseState):
                 self._apply_fullscreen()
 
     def _apply_fullscreen(self):
-        from settings import SCREEN_W, SCREEN_H
-        is_full = self.game.settings.get("fullscreen")
-        if is_full:
-            self.game.screen = pygame.display.set_mode(
-                (SCREEN_W, SCREEN_H), pygame.FULLSCREEN)
-        else:
-            self.game.screen = pygame.display.set_mode(
-                (SCREEN_W, SCREEN_H))
+        self.game.apply_fullscreen()
 
     def update(self, dt):
         pass

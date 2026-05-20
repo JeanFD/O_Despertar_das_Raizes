@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<map version="1.10" tiledversion="1.12.1" orientation="orthogonal" renderorder="right-down" width="80" height="30" tilewidth="32" tileheight="32" infinite="0" nextlayerid="8" nextobjectid="19">
+<map version="1.10" tiledversion="1.12.1" orientation="orthogonal" renderorder="right-down" width="80" height="30" tilewidth="32" tileheight="32" infinite="0" nextlayerid="8" nextobjectid="22">
  <tileset firstgid="1" name="placeholder_tileset" tilewidth="32" tileheight="32" tilecount="4" columns="4">
   <image source="../images/placeholder_tileset.png" width="128" height="32"/>
  </tileset>
@@ -75,12 +75,6 @@
   <object id="3" name="dash" type="ability_pickup" x="197.803" y="835.545">
    <point/>
   </object>
-  <object id="8" name="double_jump" type="ability_pickup" x="95.3973" y="845.091">
-   <properties>
-    <property name="ability" value="double_jump"/>
-   </properties>
-   <point/>
-  </object>
   <object id="9" name="crawler" type="crawler" x="1351.64" y="871.152">
    <point/>
   </object>
@@ -106,6 +100,12 @@
    <point/>
   </object>
   <object id="18" name="spike" type="spike" x="1250.67" y="293.333">
+   <point/>
+  </object>
+  <object id="19" name="scarecrow" type="scarecrow" x="1757.58" y="884.848">
+   <point/>
+  </object>
+  <object id="20" name="scarecrow" type="scarecrow" x="2445.45" y="860.606">
    <point/>
   </object>
  </objectgroup>
