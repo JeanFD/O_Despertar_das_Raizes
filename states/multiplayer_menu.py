@@ -7,20 +7,18 @@ from ui.menu_ui import (
 )
 
 _ITEMS_MAIN = ["Hospedar Partida", "Entrar na Partida", "Voltar"]
-_ITEMS_MODE = [
-    "Co-op  (dois protagonistas)",
-    "Versus (1v1)",
-    "Boss Battle",
-    "Voltar",
-]
 
 
 class MultiplayerMenu(BaseState):
     """
     Fluxo:
-        main → [Hospedar] → mode  → LobbyState(host)
+        main → [Hospedar] → LobbyState(host, versus)
              → [Entrar]   → searching → seleciona host → LobbyState(client)
                                       → ip_input (fallback manual)
+
+    Modo único: versus 1v1. Co-op e boss battle foram removidos do menu;
+    se voltarem no futuro, basta reintroduzir a fase "mode" e a tela de
+    seleção entre os modos.
     """
 
     def on_enter(self):
@@ -51,7 +49,7 @@ class MultiplayerMenu(BaseState):
             return
         key = event.key
 
-        if self._phase in ("main", "mode"):
+        if self._phase == "main":
             self._nav_key(key)
         elif self._phase == "searching":
             self._search_key(key)
@@ -110,37 +108,18 @@ class MultiplayerMenu(BaseState):
     # ── Lógica ────────────────────────────────────────────────────────────────
 
     def _confirm(self):
-        if self._phase == "main":
-            if self._sel == 0:
-                self._phase = "mode"
-                self._items = _ITEMS_MODE
-                self._sel   = 0
-            elif self._sel == 1:
-                self._start_search()
-            else:
-                self.game.states.pop()
-        elif self._phase == "mode":
-            if self._sel == 0:
-                self._game_mode = "coop"
-                self._launch_host()
-            elif self._sel == 1:
-                self._game_mode = "vs"
-                self._launch_host()
-            elif self._sel == 2:
-                self._game_mode = "boss"
-                self._launch_host()
-            else:
-                self._phase = "main"
-                self._items = _ITEMS_MAIN
-                self._sel   = 0
-
-    def _back(self):
-        if self._phase == "mode":
-            self._phase = "main"
-            self._items = _ITEMS_MAIN
-            self._sel   = 0
+        if self._phase != "main":
+            return
+        if self._sel == 0:
+            self._game_mode = "vs"
+            self._launch_host()
+        elif self._sel == 1:
+            self._start_search()
         else:
             self.game.states.pop()
+
+    def _back(self):
+        self.game.states.pop()
 
     def _start_search(self):
         from network.discovery import HostFinder
@@ -185,7 +164,7 @@ class MultiplayerMenu(BaseState):
         draw_particles(surface, self._tick)
         draw_title(surface, "MULTIPLAYER", surface.get_height() // 6)
 
-        if self._phase in ("main", "mode"):
+        if self._phase == "main":
             W, H = surface.get_size()
             draw_menu_items(surface, self._items, self._sel,
                             x=0, y=H // 2 - 40, spacing=48, size=24)
