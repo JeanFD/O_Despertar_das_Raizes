@@ -15,7 +15,7 @@ DASH_CD    = 0.80
 
 DASH_DOWN_SPEED = 1200
 PLUNGE_HOP_FORCE = -500
-PLUNGE_DAMAGE = 35
+PLUNGE_DAMAGE = 22
 PLUNGE_RADIUS = 40
 PLUNGE_CD = 0.6
 
@@ -26,16 +26,66 @@ ATTACK_HB_OX = 20
 ATTACK_HB_OY = -32
 ATTACK_HB_W = 26
 ATTACK_HB_H = 32
-ATTACK_HB_DAMAGE = 20
+ATTACK_HB_DAMAGE = 12
 ATTACK_HB_KNOCKBACK = 250
 
 PARRY_WINDOW = 0.20
 PARRY_CD = 1.0
 PARRY_STUN = 0.6
-PARRY_REFLECT = 30
+PARRY_REFLECT = 18
 PARRY_IFRAMES = 0.5
 
+MAX_STAMINA   = 100.0
+# Sem regen passivo: a barra funciona como "mana/especial" — só enche
+# ao acertar um inimigo. Incentiva pressão ofensiva e evita usar abilidades
+# enquanto se foge. Começa no máximo para não punir o spawn.
+COST_DASH    = 18.0
+COST_PLUNGE  = 25.0
+COST_RANGED  = 15.0
+COST_PARRY   = 12.0
+STAMINA_GAIN_ON_HIT = 22.0  # ganho por acertar um inimigo
+
+
+class _NetKeys:
+    """Adapter que faz um dict de input (rede) se comportar como
+    pygame.key.get_pressed(). Permite que update_input rode com inputs
+    locais OU remotos sem duplicar lógica.
+
+    Campos esperados no dict (todos booleanos / 0-1):
+        l   K_a  / K_LEFT
+        r   K_d  / K_RIGHT
+        dn  K_s  / K_DOWN
+        sh  K_LSHIFT
+        at  K_z  / K_j
+        rn  K_x  / K_k
+        pa  K_c  / K_l
+
+    Pulo (jump) é tratado fora — via inp.get("ju") setando jump_buffer.
+    """
+    _MAP = {
+        pygame.K_LEFT:   "l",  pygame.K_a:      "l",
+        pygame.K_RIGHT:  "r",  pygame.K_d:      "r",
+        pygame.K_DOWN:   "dn", pygame.K_s:      "dn",
+        pygame.K_LSHIFT: "sh",
+        pygame.K_z:      "at", pygame.K_j:      "at",
+        pygame.K_x:      "rn", pygame.K_k:      "rn",
+        pygame.K_c:      "pa", pygame.K_l:      "pa",
+    }
+
+    def __init__(self, inp: dict):
+        self._inp = inp
+
+    def __getitem__(self, key):
+        field = self._MAP.get(key)
+        if field is None:
+            return False
+        return bool(self._inp.get(field))
+
+
 class Player(Entity):
+    # Lido por CombatSystem via getattr para reembolso de stamina ao acertar.
+    STAMINA_GAIN_ON_HIT = STAMINA_GAIN_ON_HIT
+
     def __init__(self, game, x, y, team_id: str = "player"):
         super().__init__(game, x, y)
 
@@ -78,15 +128,20 @@ class Player(Entity):
         self.parry_cd = 0.0
         self.stun_timer = 0.0
 
+        self.max_stamina = MAX_STAMINA
+        self.stamina = MAX_STAMINA
+
+        # Cliente: nome de animação autoritativo recebido via snapshot.
+        # Quando setado, sobrepõe a lógica local (que depende de on_ground,
+        # não calculado no cliente sem PhysicsSystem). No host fica None.
+        self._authoritative_anim: str | None = None
+
+        # Edge detection — única fonte (usada tanto por input local quanto
+        # por input de rede, que delega para update_input via _NetKeys).
         self._was_shift = False
         self._was_parry = False
         self._was_attack = False
         self._was_ranged = False
-        self._net_was_da = False
-        self._net_was_pl = False
-        self._net_was_pa = False
-        self._net_was_at = False
-        self._net_was_rn = False
 
         self.wall_jump_lockout = 0.0
 
@@ -137,7 +192,9 @@ class Player(Entity):
         if (shift_edge and keys_down_pressed
                 and self.plunge_timer <= 0 and self.plunge_cd <= 0
                 and not self.plunge_pending
-                and self.abilities.get("plunge")):
+                and self.abilities.get("plunge")
+                and self.stamina >= COST_PLUNGE):
+            self.stamina -= COST_PLUNGE
             if self.body.on_ground:
                 self.vel.y = PLUNGE_HOP_FORCE
                 self.vel.x = 0
@@ -148,7 +205,9 @@ class Player(Entity):
                 self.vel.x = 0
         elif (shift_edge and self.dash_cd <= 0
               and not self.plunge_pending and self.plunge_timer <= 0
-              and self.abilities["dash"]):
+              and self.abilities["dash"]
+              and self.stamina >= COST_DASH):
+            self.stamina -= COST_DASH
             self.dash_timer = DASH_TIME
             self.dash_cd    = DASH_CD
             self.vel.x      = self.facing * DASH_SPEED
@@ -157,11 +216,16 @@ class Player(Entity):
         if attack_edge and self.attack_timer <= 0:
             self.attack_timer = ATTACK_TIME
 
-        if ranged_edge and self.ranged_cd <= 0 and self.abilities.get("ranged"):
+        if (ranged_edge and self.ranged_cd <= 0 and self.abilities.get("ranged")
+                and self.stamina >= COST_RANGED):
+            self.stamina -= COST_RANGED
             self.ranged_cd = RANGED_CD
             self._spawn_projectile_callback = True
         if parry_edge:
-            if (self.parry_cd <= 0 and self.parry_timer <= 0 and self.abilities.get("parry")):
+            if (self.parry_cd <= 0 and self.parry_timer <= 0
+                    and self.abilities.get("parry")
+                    and self.stamina >= COST_PARRY):
+                self.stamina -= COST_PARRY
                 self.parry_timer = PARRY_WINDOW
                 self.parry_cd = PARRY_CD
         
@@ -214,6 +278,11 @@ class Player(Entity):
             anim = "run"
         else:
             anim = "idle"
+        # No cliente, on_ground não é calculado (PhysicsSystem só roda no host),
+        # então a lógica acima trava em "fall". Quando vem snapshot do host,
+        # usamos o anim autoritativo para refletir o estado real.
+        if self._authoritative_anim:
+            anim = self._authoritative_anim
         self.anim.play(anim, flip_x=(self.facing == -1))
         self.anim.update(dt)
 
@@ -286,69 +355,54 @@ class Player(Entity):
         self.parry_timer = 0.0
         self.parry_cd = 0.0
         self.stun_timer = 0.0
+        self.stamina = self.max_stamina
 
     def apply_net_input(self, inp: dict):
-        """Aplica dict de inputs recebido pela rede. Espelha update_input()."""
-        # Edge detection — atualizar SEMPRE, mesmo durante stun/dash
-        da_held = bool(inp.get("da"))
-        pl_held = bool(inp.get("pl"))
-        pa_held = bool(inp.get("pa"))
-        at_held = bool(inp.get("at"))
-        rn_held = bool(inp.get("rn"))
-        da_edge = da_held and not self._net_was_da
-        pl_edge = pl_held and not self._net_was_pl
-        pa_edge = pa_held and not self._net_was_pa
-        at_edge = at_held and not self._net_was_at
-        rn_edge = rn_held and not self._net_was_rn
-        self._net_was_da = da_held
-        self._net_was_pl = pl_held
-        self._net_was_pa = pa_held
-        self._net_was_at = at_held
-        self._net_was_rn = rn_held
+        """Aplica dict de inputs recebido pela rede.
 
-        if self.stun_timer > 0:
-            return
-        if self.dash_timer > 0:
-            return
-        self.vel.x = 0
-        if inp.get("r"):
-            self.vel.x =  MOVE_SPEED
-            self.facing = 1
-        if inp.get("l"):
-            self.vel.x = -MOVE_SPEED
-            self.facing = -1
-        if da_edge and self.dash_cd <= 0 and self.abilities["dash"]:
-            self.dash_timer = DASH_TIME
-            self.dash_cd    = DASH_CD
-            self.vel.x      = self.facing * DASH_SPEED
-            self.vel.y      = 0
-        if at_edge and self.attack_timer <= 0:
-            self.attack_timer = ATTACK_TIME
+        Delega 100% para update_input via _NetKeys — a lógica de input vive
+        em UM lugar só. Qualquer mudança em update_input (nova habilidade,
+        regra, ajuste de cooldown) automaticamente vale para o jogador remoto.
+
+        Pulo é tratado à parte porque update_input não processa pulo (vem
+        via KEYDOWN no handle_event do estado, equivalente ao 'ju' aqui).
+        """
+        self.update_input(_NetKeys(inp))
         if inp.get("ju"):
             self.jump_buffer = JUMP_BUFFER
-        if rn_edge and self.ranged_cd <= 0 and self.abilities.get("ranged"):
-            self.ranged_cd = RANGED_CD
-            self._spawn_projectile_callback = True
-        if pl_edge and self.abilities.get("plunge"):
-            if self.plunge_timer <= 0 and self.plunge_cd <= 0 and not self.plunge_pending:
-                if self.body.on_ground:
-                    self.vel.y = PLUNGE_HOP_FORCE
-                    self.vel.x = 0
-                    self.plunge_pending = True
-                else:
-                    self.plunge_timer = 0.5
-                    self.vel.y = DASH_DOWN_SPEED
-                    self.vel.x = 0
-        if pa_edge and self.parry_cd <= 0 and self.parry_timer <= 0 and self.abilities.get("parry"):
-            self.parry_timer = PARRY_WINDOW
-            self.parry_cd = PARRY_CD
 
     def draw(self, surface, camera):
         self.anim.draw(surface, self.pos, camera)
+
+        # Debug: hitboxes do ataque (normal e shockwave do plunge)
+        if self.attack_hb.active:
+            r = camera.apply_rect(self.attack_hb.rect)
+            # Vermelho p/ ataque normal, amarelo p/ shockwave do plunge
+            color = (255, 200, 0) if self.plunge_landing else (255, 60, 60)
+            pygame.draw.rect(surface, color, r, 2)
+
+        # Debug: telegraph do plunge (mergulho em andamento)
+        if self.plunge_timer > 0:
+            sx = int(self.pos.x - camera.offset.x)
+            sy = int(self.pos.y - camera.offset.y)
+            pygame.draw.line(surface, (255, 140, 0),
+                             (sx, sy), (sx, sy + 30), 3)
+
+        # Debug/feedback: janela de parry ativa (anel branco)
         if self.parry_timer > 0:
             sx = int(self.pos.x - camera.offset.x) + 12
             sy = int(self.pos.y - camera.offset.y) - 20
             pygame.draw.circle(surface, (255, 255, 200), (sx, sy), 22, 2)
+            # Pulsa o raio interno para feedback de janela "fresca"
+            inner = int(8 + (self.parry_timer / PARRY_WINDOW) * 14)
+            pygame.draw.circle(surface, (255, 255, 120), (sx, sy), inner, 1)
+        # Cooldown: anel apagado pra mostrar "parry indisponível"
+        elif self.parry_cd > 0:
+            sx = int(self.pos.x - camera.offset.x) + 12
+            sy = int(self.pos.y - camera.offset.y) - 20
+            ratio = self.parry_cd / PARRY_CD
+            pygame.draw.circle(surface, (90, 90, 90), (sx, sy),
+                               int(8 + (1 - ratio) * 14), 1)
 
     def _trigger_plunge_landing(self):
         """Shockwave de área quando o plunge pousa. Restauração no update."""
@@ -360,3 +414,47 @@ class Player(Entity):
         self.attack_hb.knockback = 350
         self.attack_hb.active = True
         self.attack_timer = 0.08
+
+    def debug_snapshot(self) -> dict:
+        """Estado mínimo para o RemotePlayer renderizar overlays de debug
+        (hitboxes, parry, plunge). Serializado para o cliente via snapshot.
+        """
+        r = self.attack_hb.rect
+        return {
+            "atk_a":  bool(self.attack_hb.active),
+            "atk_r":  [r.x, r.y, r.w, r.h] if self.attack_hb.active else None,
+            "pl_lnd": bool(self.plunge_landing),
+            "pl_t":   float(self.plunge_timer),
+            "par_t":  float(self.parry_timer),
+            "par_cd": float(self.parry_cd),
+        }
+
+    def apply_dbg(self, dbg: dict):
+        """Cliente: aplica overlay debug autoritativo do host no Player local.
+
+        Sem isso, o jogador-2 (cliente) nunca veria a própria hitbox de
+        ataque/parry/plunge — todo o estado de combate vive no host. Os
+        timers ficam com valor "qualquer >0" enquanto o snapshot diz que
+        estão ativos; o reconcile do próximo frame rebota tudo.
+        """
+        if not dbg:
+            return
+        atk_a = bool(dbg.get("atk_a"))
+        atk_r = dbg.get("atk_r")
+        if atk_a and atk_r:
+            x, y, w, h = atk_r
+            self.attack_hb.size = (w, h)
+            self.attack_hb.offset.x = x - self.pos.x
+            self.attack_hb.offset.y = y - self.pos.y
+            self.attack_hb.active = True
+            # Mantém attack_timer > 0 para o Player.update não desativar
+            # nem resetar size/offset enquanto a janela do golpe está aberta.
+            self.attack_timer = max(self.attack_timer, 0.05)
+        else:
+            self.attack_hb.active = False
+            self.attack_timer = 0.0
+
+        self.plunge_landing = bool(dbg.get("pl_lnd"))
+        self.plunge_timer   = float(dbg.get("pl_t", 0.0))
+        self.parry_timer    = float(dbg.get("par_t", 0.0))
+        self.parry_cd       = float(dbg.get("par_cd", 0.0))

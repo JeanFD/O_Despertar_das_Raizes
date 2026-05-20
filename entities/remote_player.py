@@ -3,6 +3,7 @@ import pygame
 from entities.entity import Entity
 from components.physics_body import PhysicsBody
 from components.health import Health
+from entities.player import PARRY_WINDOW, PARRY_CD
 
 LERP_SPEED = 18.0
 
@@ -30,6 +31,14 @@ class RemotePlayer(Entity):
         self._anim_name = "idle"
         self._has_anim = False
         self.anim = None
+
+        # Debug overlay (recebido via snapshot)
+        self._dbg_atk_active = False
+        self._dbg_atk_rect = None
+        self._dbg_plunge_landing = False
+        self._dbg_plunge_timer = 0.0
+        self._dbg_parry_timer = 0.0
+        self._dbg_parry_cd = 0.0
 
         try:
             from components.animation import AnimationController
@@ -67,6 +76,16 @@ class RemotePlayer(Entity):
                 self.pos.y = self._target_y
             self.alive = new_alive
 
+        # Debug overlay fields (presentes quando a fonte é um Player)
+        dbg = s.get("dbg")
+        if dbg is not None:
+            self._dbg_atk_active     = bool(dbg.get("atk_a"))
+            self._dbg_atk_rect       = dbg.get("atk_r")
+            self._dbg_plunge_landing = bool(dbg.get("pl_lnd"))
+            self._dbg_plunge_timer   = float(dbg.get("pl_t", 0.0))
+            self._dbg_parry_timer    = float(dbg.get("par_t", 0.0))
+            self._dbg_parry_cd       = float(dbg.get("par_cd", 0.0))
+
     def update(self, dt: float):
         alpha = min(1.0, LERP_SPEED * dt)
         self.pos.x += (self._target_x - self.pos.x) * alpha
@@ -92,6 +111,39 @@ class RemotePlayer(Entity):
                 pygame.draw.rect(surface, (140, 160, 255), r, 2)
 
         self._draw_hp_bar(surface, camera)
+        self._draw_debug_overlay(surface, camera)
+
+    def _draw_debug_overlay(self, surface, camera):
+        """Reproduz os overlays de debug do Player.draw usando o estado
+        recebido via snapshot. Mantém paridade visual entre host e cliente."""
+        # Hitbox do ataque (vermelho normal, amarelo durante shockwave do plunge)
+        if self._dbg_atk_active and self._dbg_atk_rect:
+            x, y, w, h = self._dbg_atk_rect
+            rect = pygame.Rect(x, y, w, h)
+            screen_rect = camera.apply_rect(rect)
+            color = (255, 200, 0) if self._dbg_plunge_landing else (255, 60, 60)
+            pygame.draw.rect(surface, color, screen_rect, 2)
+
+        # Telegraph do plunge
+        if self._dbg_plunge_timer > 0:
+            sx = int(self.pos.x - camera.offset.x)
+            sy = int(self.pos.y - camera.offset.y)
+            pygame.draw.line(surface, (255, 140, 0),
+                             (sx, sy), (sx, sy + 30), 3)
+
+        # Parry ativo
+        if self._dbg_parry_timer > 0:
+            sx = int(self.pos.x - camera.offset.x) + 12
+            sy = int(self.pos.y - camera.offset.y) - 20
+            pygame.draw.circle(surface, (255, 255, 200), (sx, sy), 22, 2)
+            inner = int(8 + (self._dbg_parry_timer / PARRY_WINDOW) * 14)
+            pygame.draw.circle(surface, (255, 255, 120), (sx, sy), inner, 1)
+        elif self._dbg_parry_cd > 0:
+            sx = int(self.pos.x - camera.offset.x) + 12
+            sy = int(self.pos.y - camera.offset.y) - 20
+            ratio = self._dbg_parry_cd / PARRY_CD
+            pygame.draw.circle(surface, (90, 90, 90), (sx, sy),
+                               int(8 + (1 - ratio) * 14), 1)
 
     def _draw_hp_bar(self, surface, camera):
         body = self.get(PhysicsBody)

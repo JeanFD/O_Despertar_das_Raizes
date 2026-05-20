@@ -41,6 +41,9 @@ class MultiplayerGameplayState(BaseState):
         self._remote_entity = None
         self._entities      = []
 
+        # Cliente: mapeia net_id → RemoteProjectile p/ sync de snapshot.
+        self._remote_projectiles: dict = {}
+
         self._physics  = None
         self._combat   = CombatSystem()
         self._render   = RenderSystem()
@@ -53,6 +56,11 @@ class MultiplayerGameplayState(BaseState):
         self._jump_pressed = False
         self._tick = 0
         self._last_client_input: dict = {}
+
+        # Sequência monotônica de inputs (cliente envia, host ecoa "ack").
+        # Base para predição/reconciliação futura sobre WAN.
+        self._input_tick = 0
+        self._last_ack_tick = 0
 
     # ── Inicialização ─────────────────────────────────────────────────────────
 
@@ -202,6 +210,9 @@ class MultiplayerGameplayState(BaseState):
         client_msg = self.net.update(dt)
         if client_msg:
             self._last_client_input = client_msg
+            tk = client_msg.get("tk", 0)
+            if tk > self._last_ack_tick:
+                self._last_ack_tick = tk
         if self._last_client_input and isinstance(self._remote_entity, (Player, Boss)):
             self._remote_entity.apply_net_input(self._last_client_input)
 
@@ -228,6 +239,10 @@ class MultiplayerGameplayState(BaseState):
     def _update_client(self, dt: float):
         # 1. Envia input para o host (host é autoritativo — sem predição local)
         self.net.send_input(self._collect_net_input())
+        # Predição cosmética: vira o sprite local imediatamente baseado
+        # nas teclas, sem esperar o snapshot. Reconcile sobrescreve no
+        # próximo snapshot — qualquer divergência some em ~1 frame.
+        self._predict_local_facing()
 
         # 2. Recebe estado autoritativo
         state, events = self.net.update(dt)
@@ -241,6 +256,7 @@ class MultiplayerGameplayState(BaseState):
             if isinstance(self._remote_entity, RemotePlayer):
                 self._remote_entity.apply_state(state.get("p1", {}))
             self._reconcile_local(state.get("p2", {}))
+            self._sync_remote_projectiles(state.get("proj", []))
 
         # 4. Processa eventos críticos
         for ev in events:
@@ -249,6 +265,18 @@ class MultiplayerGameplayState(BaseState):
         # 5. Update lógico — animação, timers (sem física: host é autoritativo)
         for e in self._entities:
             e.update(dt)
+
+    def _predict_local_facing(self):
+        """Atualiza apenas facing do jogador local (Player), sem tocar em
+        timers ou hitboxes. Predição cosmética; reconcile sobrescreve."""
+        e = self._local_entity
+        if not isinstance(e, Player):
+            return
+        keys = pygame.key.get_pressed()
+        if keys[pygame.K_RIGHT] or keys[pygame.K_d]:
+            e.facing = 1
+        elif keys[pygame.K_LEFT] or keys[pygame.K_a]:
+            e.facing = -1
 
     def _spawn_pending_projectiles(self):
         from entities.projectile import Projectile
@@ -262,29 +290,38 @@ class MultiplayerGameplayState(BaseState):
 
     def _collect_net_input(self) -> dict:
         if isinstance(self._local_entity, Boss):
-            return self._local_entity.get_input_snapshot()
+            inp = self._local_entity.get_input_snapshot()
+            self._input_tick += 1
+            inp["tk"] = self._input_tick
+            return inp
         keys = pygame.key.get_pressed()
         ju = int(self._jump_pressed)
         self._jump_pressed = False
-        down = keys[pygame.K_s] or keys[pygame.K_DOWN]
-        shift = keys[pygame.K_LSHIFT]
+        self._input_tick += 1
         return {
-            "l":  int(keys[pygame.K_a]     or keys[pygame.K_LEFT]),
-            "r":  int(keys[pygame.K_d]     or keys[pygame.K_RIGHT]),
+            "tk": self._input_tick,
+            "l":  int(keys[pygame.K_a]      or keys[pygame.K_LEFT]),
+            "r":  int(keys[pygame.K_d]      or keys[pygame.K_RIGHT]),
+            "dn": int(keys[pygame.K_s]      or keys[pygame.K_DOWN]),
+            "sh": int(keys[pygame.K_LSHIFT]),
+            "at": int(keys[pygame.K_z]      or keys[pygame.K_j]),
+            "rn": int(keys[pygame.K_x]      or keys[pygame.K_k]),
+            "pa": int(keys[pygame.K_c]      or keys[pygame.K_l]),
             "ju": ju,
-            "da": int(shift and not down),
-            "at": int(keys[pygame.K_z]),
-            "rn": int(keys[pygame.K_x] or keys[pygame.K_k]),
-            "pl": int(shift and down),
-            "pa": int(keys[pygame.K_c] or keys[pygame.K_l]),
         }
 
     # ── Snapshot ──────────────────────────────────────────────────────────────
 
     def _build_snapshot(self) -> dict:
+        from entities.projectile import Projectile
+        proj = [e.to_net() for e in self._entities
+                if isinstance(e, Projectile) and e.alive]
         return {
             "p1": self._entity_state(self._local_entity),
             "p2": self._entity_state(self._remote_entity),
+            "proj": proj,
+            # Eco do último tick processado — base para reconciliação futura.
+            "ack": self._last_ack_tick,
         }
 
     def _check_respawn(self):
@@ -322,6 +359,40 @@ class MultiplayerGameplayState(BaseState):
         hp = e.get(Health)
         if hp and "hp" in s:
             hp.current = s["hp"]
+        if isinstance(e, Player):
+            if "sta" in s:
+                e.stamina = float(s["sta"])
+            if "dbg" in s:
+                e.apply_dbg(s["dbg"])
+            if "anim" in s:
+                e._authoritative_anim = s["anim"]
+
+    def _sync_remote_projectiles(self, proj_list: list):
+        """Cliente: replica projéteis autoritativos do host.
+
+        Cria RemoteProjectile para ids novos, atualiza posição dos existentes,
+        e remove os que o host deixou de mandar (consumidos por hit ou expiração).
+        """
+        from entities.remote_projectile import RemoteProjectile
+        seen = set()
+        for s in proj_list:
+            pid = s.get("id")
+            if pid is None:
+                continue
+            seen.add(pid)
+            rp = self._remote_projectiles.get(pid)
+            if rp is None:
+                rp = RemoteProjectile(self.game, s.get("x", 0.0), s.get("y", 0.0),
+                                      int(s.get("d", 1)), pid)
+                self._remote_projectiles[pid] = rp
+                self._entities.append(rp)
+            else:
+                rp.apply_state(s)
+
+        for pid in list(self._remote_projectiles.keys()):
+            if pid not in seen:
+                rp = self._remote_projectiles.pop(pid)
+                rp.alive = False
 
     def _entity_state(self, e) -> dict:
         if e is None:
@@ -330,7 +401,7 @@ class MultiplayerGameplayState(BaseState):
         from components.animation import AnimationController
         anim = e.get(AnimationController)
         anim_name = anim._current if anim and anim._current else "idle"
-        return {
+        state = {
             "x":      e.pos.x,
             "y":      e.pos.y,
             "vx":     e.vel.x,
@@ -339,6 +410,10 @@ class MultiplayerGameplayState(BaseState):
             "hp":     hp.current if hp else 0,
             "anim":   anim_name,
         }
+        if isinstance(e, Player):
+            state["dbg"] = e.debug_snapshot()
+            state["sta"] = e.stamina
+        return state
 
     # ── Eventos críticos ──────────────────────────────────────────────────────
 
@@ -416,8 +491,12 @@ class MultiplayerGameplayState(BaseState):
             _bar(surface, 20, 20, 200, 16,
                  hp_local.current, hp_local.max_hp,
                  (220, 50, 50), (60, 20, 20))
+            if isinstance(self._local_entity, Player):
+                _bar(surface, 20, 40, 200, 6,
+                     self._local_entity.stamina, self._local_entity.max_stamina,
+                     (90, 220, 230), (20, 40, 50))
             if hasattr(self._local_entity, "abilities"):
-                _draw_abilities(surface, self._local_entity.abilities, 20, 46)
+                _draw_abilities(surface, self._local_entity.abilities, 20, 54)
 
         hp_remote = self._remote_entity.get(Health) if self._remote_entity else None
         if hp_remote:
@@ -427,6 +506,10 @@ class MultiplayerGameplayState(BaseState):
             color  = (50, 50, 220) if self.game_mode == "coop" else (220, 50, 50)
             _bar(surface, W - bw - 20, 20, bw, 16,
                  hp_remote.current, hp_remote.max_hp, color, (20, 20, 60))
+            if isinstance(self._remote_entity, Player):
+                _bar(surface, W - bw - 20, 40, bw, 6,
+                     self._remote_entity.stamina, self._remote_entity.max_stamina,
+                     (90, 220, 230), (20, 40, 50))
             f = pygame.font.SysFont("consolas,monospace", 14)
             lbl = f.render(label, True, (180, 180, 180))
             surface.blit(lbl, (W - bw - 20 - lbl.get_width() - 6, 22))
