@@ -98,6 +98,16 @@ class VersusGameplayState(BaseState):
         self._paused = False
         self._tick = 0
 
+        # Cliente: net_id → RemoteProjectile para sync via snapshot.
+        self._remote_projectiles: dict = {}
+
+        # Sequência monotônica de inputs do cliente (envio).
+        # Host ecoa o último processado em snapshots ("ack") — base para
+        # predição/reconciliação futura sobre WAN.
+        self._input_tick = 0
+        # Host: último tick recebido do cliente, devolvido no snapshot.
+        self._last_ack_tick = 0
+
     # ── Ciclo de vida ─────────────────────────────────────────────────────────
 
     def on_enter(self):
@@ -226,6 +236,11 @@ class VersusGameplayState(BaseState):
             client_msg = self.net.update(dt)
             if client_msg:
                 self._last_client_input = client_msg
+                # Captura tick — base para futura reconciliação. Ignora
+                # pacotes antigos (out-of-order UDP) para nunca regredir.
+                tk = client_msg.get("tk", 0)
+                if tk > self._last_ack_tick:
+                    self._last_ack_tick = tk
             if self._last_client_input and isinstance(self._remote_entity, Player):
                 self._remote_entity.apply_net_input(self._last_client_input)
 
@@ -292,6 +307,10 @@ class VersusGameplayState(BaseState):
         # 1) Envia input local somente durante FIGHTING
         if self.match.can_act:
             self.net.send_input(self._collect_net_input())
+            # Predição cosmética: vira o sprite local imediatamente baseado
+            # nas teclas, sem esperar o snapshot. Reconcile sobrescreve no
+            # próximo snapshot — qualquer divergência some em ~1 frame.
+            self._predict_local_facing()
         else:
             self._last_client_input = {}
 
@@ -307,6 +326,7 @@ class VersusGameplayState(BaseState):
             if isinstance(self._p1, RemotePlayer):
                 self._p1.apply_state(state.get("p1", {}))
             self._reconcile_local(state.get("p2", {}))
+            self._sync_remote_projectiles(state.get("proj", []))
             mstate = state.get("match")
             if mstate:
                 self.match.apply_dict(mstate)
@@ -347,27 +367,41 @@ class VersusGameplayState(BaseState):
                 e.alive = False
 
     def _collect_net_input(self) -> dict:
+        """Empacota o estado bruto do teclado + número de tick.
+
+        Decisões (dash vs plunge, edge detection) NÃO são feitas aqui — o
+        host roda update_input em ambos os players, garantindo paridade.
+        Esse formato também é amigável a futura predição/reconciliação
+        (basta o cliente bufferizar (tk, dict) e re-aplicar).
+        """
         keys = pygame.key.get_pressed()
         ju = int(self._jump_pressed)
         self._jump_pressed = False
-        down = keys[pygame.K_s] or keys[pygame.K_DOWN]
-        shift = keys[pygame.K_LSHIFT]
+        self._input_tick += 1
         return {
-            "l":  int(keys[pygame.K_a]     or keys[pygame.K_LEFT]),
-            "r":  int(keys[pygame.K_d]     or keys[pygame.K_RIGHT]),
+            "tk": self._input_tick,
+            "l":  int(keys[pygame.K_a]      or keys[pygame.K_LEFT]),
+            "r":  int(keys[pygame.K_d]      or keys[pygame.K_RIGHT]),
+            "dn": int(keys[pygame.K_s]      or keys[pygame.K_DOWN]),
+            "sh": int(keys[pygame.K_LSHIFT]),
+            "at": int(keys[pygame.K_z]      or keys[pygame.K_j]),
+            "rn": int(keys[pygame.K_x]      or keys[pygame.K_k]),
+            "pa": int(keys[pygame.K_c]      or keys[pygame.K_l]),
             "ju": ju,
-            "da": int(shift and not down),
-            "at": int(keys[pygame.K_z]),
-            "rn": int(keys[pygame.K_x] or keys[pygame.K_k]),
-            "pl": int(shift and down),
-            "pa": int(keys[pygame.K_c] or keys[pygame.K_l]),
         }
 
     def _build_snapshot(self) -> dict:
+        from entities.projectile import Projectile
+        proj = [e.to_net() for e in self._entities
+                if isinstance(e, Projectile) and e.alive]
         return {
             "p1":    self._entity_state(self._p1),
             "p2":    self._entity_state(self._p2),
+            "proj":  proj,
             "match": self.match.to_dict(),
+            # Eco do último tick de input do cliente processado.
+            # Cliente usa para descartar inputs já confirmados ao reconciliar.
+            "ack":   self._last_ack_tick,
         }
 
     def _entity_state(self, e) -> dict:
@@ -377,7 +411,7 @@ class VersusGameplayState(BaseState):
         from components.animation import AnimationController
         anim = e.get(AnimationController)
         anim_name = anim._current if anim and anim._current else "idle"
-        return {
+        state = {
             "x":      e.pos.x,
             "y":      e.pos.y,
             "vx":     e.vel.x,
@@ -387,6 +421,23 @@ class VersusGameplayState(BaseState):
             "anim":   anim_name,
             "alive":  bool(getattr(e, "alive", True)),
         }
+        if isinstance(e, Player):
+            state["dbg"] = e.debug_snapshot()
+            state["sta"] = e.stamina
+        return state
+
+    def _predict_local_facing(self):
+        """Atualiza apenas facing do jogador local, sem tocar em timers ou
+        hitboxes (que continuam autoritativos no host). Pequena predição
+        cosmética para o sprite virar na hora no cliente."""
+        e = self._local_entity
+        if not isinstance(e, Player):
+            return
+        keys = pygame.key.get_pressed()
+        if keys[pygame.K_RIGHT] or keys[pygame.K_d]:
+            e.facing = 1
+        elif keys[pygame.K_LEFT] or keys[pygame.K_a]:
+            e.facing = -1
 
     def _reconcile_local(self, s: dict):
         """Snapeia direto o estado autoritativo do host na entidade local."""
@@ -402,6 +453,42 @@ class VersusGameplayState(BaseState):
         hp = e.get(Health)
         if hp and "hp" in s:
             hp.current = s["hp"]
+        if isinstance(e, Player):
+            if "sta" in s:
+                e.stamina = float(s["sta"])
+            if "dbg" in s:
+                e.apply_dbg(s["dbg"])
+            if "anim" in s:
+                e._authoritative_anim = s["anim"]
+
+    def _sync_remote_projectiles(self, proj_list: list):
+        """Cliente: replica projéteis autoritativos do host.
+
+        Cria RemoteProjectile para ids novos, atualiza posição dos existentes,
+        e marca como inativo os que sumiram do snapshot.
+        """
+        from entities.remote_projectile import RemoteProjectile
+        seen = set()
+        for s in proj_list:
+            pid = s.get("id")
+            if pid is None:
+                continue
+            seen.add(pid)
+            rp = self._remote_projectiles.get(pid)
+            if rp is None:
+                rp = RemoteProjectile(self.game, s.get("x", 0.0), s.get("y", 0.0),
+                                      int(s.get("d", 1)), pid)
+                self._remote_projectiles[pid] = rp
+                self._entities.append(rp)
+            else:
+                rp.apply_state(s)
+
+        for pid in list(self._remote_projectiles.keys()):
+            if pid not in seen:
+                rp = self._remote_projectiles.pop(pid)
+                rp.alive = False
+        self._entities = [e for e in self._entities if getattr(e, 'alive', True)
+                          or e is self._p1 or e is self._p2]
 
     # ── Transições / eventos ──────────────────────────────────────────────────
 
@@ -524,11 +611,21 @@ class VersusGameplayState(BaseState):
                  hp2.current, hp2.max_hp,
                  (255, 140, 90), (50, 25, 10), label="P2", reverse=True)
 
-        # Score (●○○) — placar de rounds
-        _draw_score_dots(surface, 24, 56,
+        # Barras de stamina (logo abaixo da HP, mais finas)
+        if isinstance(self._p1, Player):
+            _bar(surface, 24, 50, 360, 7,
+                 self._p1.stamina, self._p1.max_stamina,
+                 (90, 220, 230), (15, 35, 50))
+        if isinstance(self._p2, Player):
+            _bar(surface, W - 24 - 360, 50, 360, 7,
+                 self._p2.stamina, self._p2.max_stamina,
+                 (255, 200, 120), (45, 30, 15), reverse=True)
+
+        # Score (●○○) — placar de rounds (empurrado abaixo da stamina)
+        _draw_score_dots(surface, 24, 66,
                          self.match.score_p1, self.match.rounds_to_win,
                          (90, 200, 255))
-        _draw_score_dots(surface, W - 24 - self.match.rounds_to_win * 22, 56,
+        _draw_score_dots(surface, W - 24 - self.match.rounds_to_win * 22, 66,
                          self.match.score_p2, self.match.rounds_to_win,
                          (255, 140, 90))
 
