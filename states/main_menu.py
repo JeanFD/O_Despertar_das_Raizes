@@ -90,7 +90,7 @@ class MainMenu(BaseState):
 
         sw, sh = surface.get_size()
 
-        draw_title(surface, "METROIDVANIA", sh // 6, size=48)
+        draw_title(surface, "O DESPERTAR DAS RAIZES", sh // 6, size=48)
 
         font_sub = pygame.font.SysFont("consolas,monospace", 14)
         sub = font_sub.render("Um tutorial que funciona de verdade", True, C_TEXT_DIM)
