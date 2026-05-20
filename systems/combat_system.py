@@ -15,25 +15,32 @@ class CombatSystem:
     """
 
     def update(self, entities, dt):
-        # Coleta hitboxes ativas. Suporta entidades com múltiplas hitboxes
-        # (alguns inimigos/armadilhas registram componentes em lista).
-        attackers = []
+        # Coleta TODAS as hitboxes (não só ativas). Suporta entidades com
+        # múltiplas hitboxes (alguns inimigos/armadilhas registram em lista).
+        all_hitboxes = []
         for e in entities:
             if not e.alive:
                 continue
             for hb in e._components.values():
                 items = hb if isinstance(hb, list) else [hb]
                 for item in items:
-                    if isinstance(item, Hitbox) and item.active:
-                        attackers.append((e, item))
+                    if isinstance(item, Hitbox):
+                        all_hitboxes.append((e, item))
 
+        attackers = [(e, hb) for e, hb in all_hitboxes if hb.active]
         defenders = [
             (e, e.get(Health), e.get(PhysicsBody))
             for e in entities if e.get(Health) and e.alive
         ]
 
+        # Decrementa cooldowns de TODAS as hitboxes, mesmo as inativas. Sem
+        # isso, o cooldown por alvo (register_hit) fica preso quando a hitbox
+        # desativa entre golpes — bug do plunge: 2º plunge não dava dano no
+        # mesmo alvo porque o cd registrado no shockwave anterior nunca expirava.
+        for _, hb in all_hitboxes:
+            hb.tick(dt)
+
         for ae, ahb in attackers:
-            ahb.tick(dt)
             for de, dhp, dbody in defenders:
                 if de is ae:
                     continue
@@ -65,5 +72,14 @@ class CombatSystem:
                     kb = (dir_x * ahb.knockback, kb_y)
                     dhp.take_damage(ahb.damage, kb)
                     ahb.register_hit(id(de), cd=0.6)
+
+                    # Reembolso de stamina ao acertar — Player (e só Player)
+                    # ganha um pouco de fôlego ao conectar um golpe. Projéteis
+                    # não têm stamina, então não fazem nada aqui. Mantém pressão
+                    # ofensiva sem precisar farmar regen ocioso.
+                    gain = getattr(ae, "STAMINA_GAIN_ON_HIT", 0.0)
+                    if gain and hasattr(ae, "stamina") and hasattr(ae, "max_stamina"):
+                        ae.stamina = min(ae.max_stamina, ae.stamina + gain)
+
                     if hasattr(ae, 'lifetime'):
                         ae.alive = False
