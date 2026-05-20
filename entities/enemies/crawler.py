@@ -14,10 +14,16 @@ class Crawler(Entity):
         self.touch_hb.active = True
         self.dir = -1
         self.vel.x = self.dir * 80
+        self.team = "enemy"
 
     def update(self, dt):
         self.hp.update(dt)
         self.touch_hb.tick(dt)
+
+        # mata se cair fora do mapa
+        if self.pos.y > 1000:  # ajusta esse valor para o tamanho do seu mapa
+            self.kill()
+            return
 
         if self.body.on_wall:
             self.dir *= -1

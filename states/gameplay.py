@@ -72,6 +72,12 @@ class GameplayState(BaseState):
         for data in self.level.spawn_points.get("scarecrow", []):
             from entities.enemies.scarecrow import Scarecrow
             self.entities.append(Scarecrow(self.game, data["x"], data["y"]))
+        for data in self.level.spawn_points.get("spike", []):
+            from entities.spike import Spike 
+            props = data.get("props", {})
+            x_min = props.get("x_min", data["x"] - 100)
+            x_max = props.get("x_max", data["x"] + 100)
+            self.entities.append(Spike(self.game, data["x"], data["y"], x_min, x_max))
 
     def handle_event(self, event):
         if event.type == pygame.KEYDOWN:
