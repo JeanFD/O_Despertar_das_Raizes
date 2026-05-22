@@ -246,6 +246,7 @@ Abre no menu principal. Use `Settings` para alternar fullscreen, mostrar FPS, aj
 
 A definir — projeto pessoal em desenvolvimento.
 
-## Autor
+## Autores
 
-**Jean Ferreira Dias** — [github.com/JeanFD](https://github.com/JeanFD)
+- **Jean Ferreira Dias** — [github.com/JeanFD](https://github.com/JeanFD)
+- **Lara Domingos Viana**
