@@ -1,0 +1,22 @@
+[Unit]
+Description=O Despertar das Raizes — Game Server (porta %i)
+After=network.target
+
+[Service]
+Type=simple
+User=odr
+WorkingDirectory=/home/odr/O_Despertar_das_Raizes
+Environment=PYTHONUNBUFFERED=1
+EnvironmentFile=-/etc/odr/server.env
+ExecStart=/home/odr/O_Despertar_das_Raizes/.venv/bin/python -m server \
+  --port %i \
+  --mode vs \
+  --max-players 2 \
+  --idle-timeout 60
+Restart=on-failure
+RestartSec=2
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

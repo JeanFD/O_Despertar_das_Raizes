@@ -1,0 +1,22 @@
+[Unit]
+Description=O Despertar das Raizes — Lobby HTTP (matchmaker)
+After=network.target
+
+[Service]
+Type=simple
+User=odr
+WorkingDirectory=/home/odr/O_Despertar_das_Raizes
+Environment=PYTHONUNBUFFERED=1
+EnvironmentFile=-/etc/odr/lobby.env
+ExecStart=/home/odr/O_Despertar_das_Raizes/.venv/bin/python -m server.lobby \
+  --host 127.0.0.1 \
+  --port 8080 \
+  --port-range 7780-7799 \
+  --server-cmd "/home/odr/O_Despertar_das_Raizes/.venv/bin/python -m server"
+Restart=on-failure
+RestartSec=3
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

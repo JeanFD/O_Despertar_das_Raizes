@@ -1,0 +1,6 @@
+# Dependências do SERVIDOR DEDICADO (VPS, headless).
+# NÃO inclui pygame — servidor não renderiza nem toca áudio.
+#
+# Cliente continua usando requirements.txt (pygame + pytmx).
+
+msgpack>=1.0.5
