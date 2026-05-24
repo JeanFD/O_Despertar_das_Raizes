@@ -249,4 +249,4 @@ A definir — projeto pessoal em desenvolvimento.
 ## Autores
 
 - **Jean Ferreira Dias** — [github.com/JeanFD](https://github.com/JeanFD)
-- **Lara Domingos Viana**
+- **Lara Domingos Viana** — [github.com/Lara-Viana](https://github.com/Lara-Viana)
