@@ -6,7 +6,7 @@ from ui.menu_ui import (
     draw_hint_bar, draw_particles, C_TEXT, C_HIGHLIGHT,
 )
 
-_ITEMS_MAIN = ["Hospedar Partida", "Entrar na Partida", "Voltar"]
+_ITEMS_MAIN = ["Partidas Online (VPS)", "Hospedar LAN", "Entrar em LAN", "Voltar"]
 
 
 class MultiplayerMenu(BaseState):
@@ -111,12 +111,19 @@ class MultiplayerMenu(BaseState):
         if self._phase != "main":
             return
         if self._sel == 0:
+            self._launch_online()
+        elif self._sel == 1:
             self._game_mode = "vs"
             self._launch_host()
-        elif self._sel == 1:
+        elif self._sel == 2:
             self._start_search()
         else:
             self.game.states.pop()
+
+    def _launch_online(self):
+        from settings import MATCHMAKER_URL
+        from states.online_browser import OnlineBrowserState
+        self.game.states.change(OnlineBrowserState(self.game, MATCHMAKER_URL))
 
     def _back(self):
         self.game.states.pop()
