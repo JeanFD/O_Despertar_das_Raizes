@@ -175,3 +175,13 @@ secrets.json
 
 CLAUDE.md
 data/
+
+# ==========================================
+# Documentos internos (não publicar)
+# ==========================================
+ARQUITETURA_MULTIPLAYER.md
+NOTES_*.md
+
+# Arquivos de log local do servidor de jogo
+server_*.log
+lobby_*.db
