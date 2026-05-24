@@ -63,12 +63,27 @@ class Scarecrow(Entity):
             self._update_recovery(dt)
 
 
+    def _find_player(self):
+        """Resolve o player-alvo de forma defensiva. O state no topo da pilha
+        pode não ser o de gameplay (ex: pausa, respawn, transição) e pode
+        nem ter atributo `player` (multiplayer usa `_local_entity`). Retorna
+        None nesse caso — chamadores tratam ficando parados."""
+        cur = self.game.states.current
+        for attr in ("player", "_local_entity", "_p1"):
+            target = getattr(cur, attr, None)
+            if target is not None:
+                return target
+        return None
+
     def _update_idle(self, dt):
         # anda devagar em direção ao player
-        player = self.game.states.current.player
-        dx = player.pos.x - self.pos.x
-        self.dir = 1 if dx > 0 else -1
-        self.vel.x = self.dir * 80
+        player = self._find_player()
+        if player is None:
+            self.vel.x = 0
+        else:
+            dx = player.pos.x - self.pos.x
+            self.dir = 1 if dx > 0 else -1
+            self.vel.x = self.dir * 80
 
         if self.body.on_wall:
             self.vel.x = 0
@@ -79,10 +94,10 @@ class Scarecrow(Entity):
     def _update_telegraph(self, dt):
         # para, olha pro player e decide o ataque
         self.vel.x = 0
-        player = self.game.states.current.player
-        dx = player.pos.x - self.pos.x
-        dy = player.pos.y - self.pos.y
-        self.dir = 1 if dx > 0 else -1
+        player = self._find_player()
+        if player is not None:
+            dx = player.pos.x - self.pos.x
+            self.dir = 1 if dx > 0 else -1
 
         if self.next_attack is None:
             self.next_attack = random.choice(["down", "front"])
@@ -92,7 +107,11 @@ class Scarecrow(Entity):
 
     def _update_dash(self, dt):
         # corre em direção ao player para executar o ataque já decidido
-        player = self.game.states.current.player
+        player = self._find_player()
+        if player is None:
+            self.vel.x = 0
+            self._change_state("recovery")
+            return
         dx = player.pos.x - self.pos.x
         dist = abs(dx)
 
