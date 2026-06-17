@@ -2,7 +2,7 @@
 import time
 from network.connection import UDPConnection
 from network.protocol import (
-    MSG_HELLO, MSG_HELLO_ACK, MSG_INPUT,
+    MSG_HELLO, MSG_HELLO_ACK, MSG_GAME_START, MSG_INPUT,
     MSG_STATE, MSG_EVENT, MSG_EVENT_ACK, MSG_DISCONNECT,
 )
 from settings import SERVER_HOST, SERVER_PORT, NET_TIMEOUT
@@ -16,19 +16,21 @@ class ServerClient:
     - Usa porta 0 (OS escolhe) — não conflita com outro cliente no mesmo PC.
     - Conecta em SERVER_HOST:SERVER_PORT (IP fixo do VPS).
     - Recebe player_id (1 ou 2) no handshake.
+    - game_started fica True quando servidor envia START (ambos conectados).
     - update() devolve (snapshot | None, lista_de_eventos) — mesma API do Client.
     """
 
     def __init__(self):
-        self.conn      = UDPConnection(0)   # porta efêmera
+        self.conn         = UDPConnection(0)   # porta efêmera
         self.conn.set_remote(SERVER_HOST, SERVER_PORT)
-        self.connected = False
-        self.player_id = None
-        self.game_mode = None
-        self._acked: set = set()
+        self.connected    = False
+        self.game_started = False
+        self.player_id    = None
+        self.game_mode    = None
+        self._acked: set  = set()
 
     def connect(self, timeout: float = 30.0) -> bool:
-        """Handshake com o servidor. Chame em thread separada."""
+        """Handshake inicial — retorna quando recebe HELLO_ACK."""
         deadline = time.monotonic() + timeout
         while time.monotonic() < deadline:
             self.conn.send(MSG_HELLO)
@@ -51,7 +53,9 @@ class ServerClient:
 
         for msg in self.conn.poll():
             t = msg.get("t")
-            if t == MSG_STATE:
+            if t == MSG_GAME_START:
+                self.game_started = True
+            elif t == MSG_STATE:
                 last_state = msg
             elif t == MSG_EVENT:
                 seq = msg.get("seq")

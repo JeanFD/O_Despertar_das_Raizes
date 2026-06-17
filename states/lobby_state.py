@@ -194,11 +194,12 @@ class ServerLobbyState(BaseState):
 
     def __init__(self, game):
         super().__init__(game)
-        self._net    = None
-        self._status = "Conectando ao servidor..."
-        self._error  = ""
-        self._ready  = False
-        self._tick   = 0
+        self._net       = None
+        self._status    = "Conectando ao servidor..."
+        self._error     = ""
+        self._connected = False   # HELLO_ACK recebido
+        self._ready     = False   # START recebido — pode entrar no jogo
+        self._tick      = 0
 
     def on_enter(self):
         import threading
@@ -215,11 +216,10 @@ class ServerLobbyState(BaseState):
             self._error = f"Erro ao criar socket: {e}"
             return
 
-        self._status = "Aguardando o segundo jogador..."
-        if net.connect(timeout=60.0):
-            self._net    = net
-            self._status = f"Conectado! Você é o Jogador {net.player_id}."
-            self._ready  = True
+        if net.connect(timeout=30.0):
+            self._net       = net
+            self._connected = True
+            self._status    = f"Conectado! Você é o Jogador {net.player_id}.\nAguardando o segundo jogador..."
         else:
             net.close()
             self._error = (
@@ -239,6 +239,13 @@ class ServerLobbyState(BaseState):
 
     def update(self, dt):
         self._tick += 1
+
+        # Mantém a conexão viva e escuta o sinal START do servidor
+        if self._connected and self._net and not self._ready:
+            self._net.update(dt)
+            if self._net.game_started:
+                self._ready = True
+
         if self._ready and self._net:
             self._launch_gameplay()
 

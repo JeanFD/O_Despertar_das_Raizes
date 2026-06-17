@@ -3,7 +3,7 @@ import socket
 import threading
 import time
 import queue
-from network.protocol import encode, decode, MSG_PING, MSG_PONG, MSG_HELLO, MSG_HELLO_ACK
+from network.protocol import encode, decode, MSG_PING, MSG_PONG, MSG_HELLO, MSG_HELLO_ACK, MSG_GAME_START
 
 BUFFER             = 8192
 HEARTBEAT_INTERVAL = 1.0
@@ -58,7 +58,19 @@ class DedicatedServerConn:
                 continue
 
             msg = decode(data)
-            if msg.get("t") != MSG_HELLO:
+            t   = msg.get("t")
+
+            # Responde PING de clientes já registrados para manter conexão viva
+            # enquanto espera o segundo jogador.
+            if t == MSG_PING and addr in registered:
+                try:
+                    self.sock.sendto(encode(MSG_PONG, id=msg.get("id")), addr)
+                except OSError:
+                    pass
+                self._last_seen[self._clients[addr]] = time.monotonic()
+                continue
+
+            if t != MSG_HELLO:
                 continue
 
             if addr not in registered:
@@ -77,6 +89,12 @@ class DedicatedServerConn:
 
             if len(registered) == 2:
                 print("[server] Dois jogadores conectados. Iniciando partida.")
+                # Avisa ambos que o jogo vai começar
+                for a in registered:
+                    try:
+                        self.sock.sendto(encode(MSG_GAME_START), a)
+                    except OSError:
+                        pass
                 self._start_threads()
                 return True
 

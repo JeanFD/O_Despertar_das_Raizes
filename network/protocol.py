@@ -4,6 +4,7 @@ import time
 
 MSG_HELLO        = "HI"
 MSG_HELLO_ACK    = "HI_ACK"
+MSG_GAME_START   = "START"
 MSG_INPUT        = "INP"
 MSG_STATE        = "ST"
 MSG_EVENT        = "EV"
