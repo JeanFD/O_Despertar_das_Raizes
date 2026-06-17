@@ -35,7 +35,7 @@ class _HeadlessGame:
 
     class _Assets:
         def image(self, _path):
-            return pygame.Surface((1, 1))
+            return pygame.Surface((1024, 1024))
 
         def font(self, _path, _size):
             return pygame.font.SysFont("monospace", _size)
