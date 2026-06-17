@@ -46,11 +46,16 @@ from components.health import Health
 
 class VersusGameplayState(BaseState):
 
-    def __init__(self, game, net, is_host: bool, best_of: int = 3):
+    def __init__(self, game, net, is_host: bool, best_of: int = 3,
+                 player_id: int = None):
         super().__init__(game)
-        self.net      = net
-        self.is_host  = is_host
-        self.best_of  = best_of
+        self.net       = net
+        self.is_host   = is_host
+        self.best_of   = best_of
+        # player_id define qual entidade é local quando is_host=False.
+        # 1 → P1 é local (P2 é RemotePlayer); 2 → P2 é local (P1 é RemotePlayer).
+        # Defaults para comportamento original do modo P2P.
+        self._player_id = player_id if player_id is not None else (1 if is_host else 2)
 
         # Posse da conexão. Por default este state fecha net em on_exit;
         # quando transferimos a conexão para o pós-partida (revanche) ou
@@ -153,24 +158,23 @@ class VersusGameplayState(BaseState):
     # ── Spawn / reset ─────────────────────────────────────────────────────────
 
     def _spawn_entities(self):
-        # Constrói os 2 Players SEMPRE — depois decidimos qual é "local".
         self._p1 = Player(self.game, *self._sp1, team_id="p1")
         self._p1.facing = 1
-        if self.is_host:
-            self._p2 = Player(self.game, *self._sp2, team_id="p2")
-            self._p2.facing = -1
-        else:
-            self._p2 = Player(self.game, *self._sp2, team_id="p2")
-            self._p2.facing = -1
+        self._p2 = Player(self.game, *self._sp2, team_id="p2")
+        self._p2.facing = -1
 
-        # No cliente, P1 é apenas representação remota interpolada.
         if not self.is_host:
-            self._p1 = RemotePlayer(self.game, *self._sp1)
-            # RemotePlayer não tem .team — adicionamos para consistência
-            # (não importa para combate pois ele não tem hitbox de ataque).
-            self._p1.team = "p1"
+            # Quem é RemotePlayer depende de qual player_id este cliente tem.
+            if self._player_id == 1:
+                # Sou P1 local → P2 é remoto
+                self._p2 = RemotePlayer(self.game, *self._sp2)
+                self._p2.team = "p2"
+            else:
+                # Sou P2 local → P1 é remoto (comportamento P2P original)
+                self._p1 = RemotePlayer(self.game, *self._sp1)
+                self._p1.team = "p1"
 
-        if self.is_host:
+        if self.is_host or self._player_id == 1:
             self._local_entity, self._remote_entity = self._p1, self._p2
         else:
             self._local_entity, self._remote_entity = self._p2, self._p1
@@ -331,11 +335,16 @@ class VersusGameplayState(BaseState):
             self._disconnected = True
             return
 
-        # 3) Aplica estado
+        # 3) Aplica estado — usa player_id para saber qual chave é "local"
         if state:
-            if isinstance(self._p1, RemotePlayer):
-                self._p1.apply_state(state.get("p1", {}))
-            self._reconcile_local(state.get("p2", {}))
+            if self._player_id == 1:
+                self._reconcile_local(state.get("p1", {}))
+                if isinstance(self._p2, RemotePlayer):
+                    self._p2.apply_state(state.get("p2", {}))
+            else:
+                if isinstance(self._p1, RemotePlayer):
+                    self._p1.apply_state(state.get("p1", {}))
+                self._reconcile_local(state.get("p2", {}))
             self._sync_remote_projectiles(state.get("proj", []))
             mstate = state.get("match")
             if mstate:
@@ -704,7 +713,7 @@ class VersusGameplayState(BaseState):
     def _draw_net_info(self, surface):
         W, H = surface.get_size()
         f = pygame.font.SysFont("consolas,monospace", 13)
-        role = "HOST" if self.is_host else "CLIENT"
+        role = "HOST" if self.is_host else f"P{self._player_id}"
         txt = f.render(f"{role}  VERSUS", True, (90, 90, 110))
         surface.blit(txt, (W - txt.get_width() - 8, H - 20))
 

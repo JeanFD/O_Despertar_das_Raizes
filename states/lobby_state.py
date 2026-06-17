@@ -182,3 +182,105 @@ def _get_lan_ips() -> list[str]:
         pass
 
     return found if found else ["127.0.0.1 (local only)"]
+
+
+class ServerLobbyState(BaseState):
+    """
+    Sala de espera para o modo dedicated server.
+
+    Conecta ao servidor UDP via ServerClient, aguarda HELLO_ACK
+    com o player_id atribuído, e lança VersusGameplayState.
+    """
+
+    def __init__(self, game):
+        super().__init__(game)
+        self._net    = None
+        self._status = "Conectando ao servidor..."
+        self._error  = ""
+        self._ready  = False
+        self._tick   = 0
+
+    def on_enter(self):
+        import threading
+        threading.Thread(target=self._connect_thread, daemon=True).start()
+
+    def _connect_thread(self):
+        from network.server_client import ServerClient
+        from settings import SERVER_HOST, SERVER_PORT
+
+        self._status = f"Conectando a {SERVER_HOST}:{SERVER_PORT}..."
+        try:
+            net = ServerClient()
+        except OSError as e:
+            self._error = f"Erro ao criar socket: {e}"
+            return
+
+        self._status = "Aguardando o segundo jogador..."
+        if net.connect(timeout=60.0):
+            self._net    = net
+            self._status = f"Conectado! Você é o Jogador {net.player_id}."
+            self._ready  = True
+        else:
+            net.close()
+            self._error = (
+                f"Sem resposta do servidor ({SERVER_HOST}:{SERVER_PORT}).\n"
+                "Verifique:\n"
+                "1) O servidor está rodando no VPS?\n"
+                "2) IP correto em settings.py?\n"
+                "3) Porta UDP 7777 aberta no firewall?"
+            )
+
+    def handle_event(self, event):
+        if event.type == pygame.KEYDOWN and event.key == pygame.K_ESCAPE:
+            if self._net:
+                self._net.close()
+                self._net = None
+            self.game.states.pop()
+
+    def update(self, dt):
+        self._tick += 1
+        if self._ready and self._net:
+            self._launch_gameplay()
+
+    def _launch_gameplay(self):
+        from states.versus_gameplay import VersusGameplayState
+        state = VersusGameplayState(
+            self.game,
+            net=self._net,
+            is_host=False,
+            player_id=self._net.player_id,
+            best_of=3,
+        )
+        self.game.states.change(state)
+
+    def draw(self, surface):
+        from ui.menu_ui import draw_gradient_bg, draw_title, draw_hint_bar
+        draw_gradient_bg(surface)
+        draw_title(surface, "CONECTANDO", surface.get_height() // 6)
+
+        W, H = surface.get_size()
+        f    = pygame.font.SysFont("consolas,monospace", 22)
+
+        text  = self._error if self._error else self._status
+        color = (255, 80, 80) if self._error else (180, 220, 180)
+        lines = text.split("\n")
+        start_y = H // 2 - (len(lines) * 28) // 2
+
+        for i, line in enumerate(lines):
+            t = f.render(line, True, color)
+            surface.blit(t, (W // 2 - t.get_width() // 2, start_y + i * 28))
+
+        if not self._error:
+            self._draw_spinner(surface, W // 2, H // 2 + 90)
+
+        draw_hint_bar(surface, "ESC cancelar")
+
+    def _draw_spinner(self, surface, cx, cy):
+        import math
+        t = self._tick / 8
+        for i in range(8):
+            angle = math.pi * 2 * i / 8 + t
+            ax = cx + math.cos(angle) * 20
+            ay = cy + math.sin(angle) * 20
+            a  = int(40 + 215 * (i / 8))
+            pygame.draw.circle(surface, (a, a, 200), (int(ax), int(ay)), 4)

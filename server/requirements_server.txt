@@ -1,0 +1,3 @@
+# Dependências exclusivas do VPS (não precisam no cliente)
+pygame
+pytmx
