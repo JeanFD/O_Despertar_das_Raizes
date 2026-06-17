@@ -37,6 +37,9 @@ class MultiplayerMenu(BaseState):
         # Fase code_input (fallback manual)
         self._code_input = ""
 
+        # Flag para mudança de estado segura na thread principal
+        self._go_to_lobby = False
+
     # ── Eventos ───────────────────────────────────────────────────────────────
 
     def handle_event(self, event):
@@ -168,7 +171,7 @@ class MultiplayerMenu(BaseState):
             with urllib.request.urlopen(req, timeout=5) as r:
                 body = json.loads(r.read())
             if body.get("ok"):
-                self._go_to_server_lobby()
+                self._go_to_lobby = True   # sinaliza para o update() na thread principal
             else:
                 self._error = body.get("error", "Erro ao entrar no lobby.")
         except urllib.error.HTTPError as e:
@@ -185,7 +188,14 @@ class MultiplayerMenu(BaseState):
 
     def update(self, dt):
         self._tick += 1
-        # Quando o código chegou do servidor HTTP, P1 conecta ao game server
+
+        # Mudanças de estado sempre na thread principal (evita race condition)
+        if self._go_to_lobby:
+            self._go_to_lobby = False
+            self._go_to_server_lobby()
+            return
+
+        # P1: quando o código chegou do servidor HTTP, conecta ao game server
         if (self._phase == "hosting"
                 and self._lobby_code
                 and self._lobby_code != "..."
