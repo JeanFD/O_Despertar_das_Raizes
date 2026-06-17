@@ -13,7 +13,7 @@ CLIENT_PORT = 7778
 NET_TIMEOUT = 5.0
 
 # Dedicated server (preencha com o IP do VPS antes de publicar)
-SERVER_HOST       = "127.0.0.1"
+SERVER_HOST       = "187.77.61.160"
 SERVER_PORT       = 7777
-MATCHMAKING_HOST  = "127.0.0.1"
+MATCHMAKING_HOST  = "187.77.61.160"
 MATCHMAKING_PORT  = 8080
