@@ -192,14 +192,15 @@ class ServerLobbyState(BaseState):
     com o player_id atribuído, e lança VersusGameplayState.
     """
 
-    def __init__(self, game):
+    def __init__(self, game, lobby_code=None):
         super().__init__(game)
-        self._net       = None
-        self._status    = "Conectando ao servidor..."
-        self._error     = ""
-        self._connected = False   # HELLO_ACK recebido
-        self._ready     = False   # START recebido — pode entrar no jogo
-        self._tick      = 0
+        self._net        = None
+        self._lobby_code = lobby_code   # para soltar o lobby no matchmaking ao sair
+        self._status     = "Conectando ao servidor..."
+        self._error      = ""
+        self._connected  = False   # HELLO_ACK recebido
+        self._ready      = False   # START recebido — pode entrar no jogo
+        self._tick       = 0
 
     def on_enter(self):
         import threading
@@ -232,10 +233,26 @@ class ServerLobbyState(BaseState):
 
     def handle_event(self, event):
         if event.type == pygame.KEYDOWN and event.key == pygame.K_ESCAPE:
+            # Solta o lobby no matchmaking antes que a partida comece — assim
+            # o próximo "Criar Partida" não esbarra num lobby fantasma (409).
+            if self._lobby_code and not self._ready:
+                self._release_lobby(self._lobby_code)
             if self._net:
                 self._net.close()
                 self._net = None
             self.game.states.pop()
+
+    def _release_lobby(self, code):
+        def _worker():
+            import urllib.request
+            from settings import MATCHMAKING_HOST, MATCHMAKING_PORT
+            url = f"http://{MATCHMAKING_HOST}:{MATCHMAKING_PORT}/lobbies/{code}"
+            try:
+                req = urllib.request.Request(url, method="DELETE")
+                urllib.request.urlopen(req, timeout=3).read()
+            except Exception:
+                pass   # best-effort; o TTL do servidor cobre a falha
+        threading.Thread(target=_worker, daemon=True).start()
 
     def update(self, dt):
         self._tick += 1

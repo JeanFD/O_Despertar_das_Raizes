@@ -159,6 +159,7 @@ class MultiplayerMenu(BaseState):
 
     def _do_join(self, code: str):
         self._error = ""
+        self._lobby_code = code   # guarda para soltar o lobby ao sair
         threading.Thread(target=self._join_thread,
                          args=(code,), daemon=True).start()
 
@@ -182,7 +183,8 @@ class MultiplayerMenu(BaseState):
 
     def _go_to_server_lobby(self):
         from states.lobby_state import ServerLobbyState
-        self.game.states.change(ServerLobbyState(self.game))
+        code = self._lobby_code if self._lobby_code not in ("", "...") else None
+        self.game.states.change(ServerLobbyState(self.game, lobby_code=code))
 
     # ── Update / Draw ─────────────────────────────────────────────────────────
 
