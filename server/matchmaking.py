@@ -47,9 +47,11 @@ class _Handler(BaseHTTPRequestHandler):
 
         if self.path == "/lobbies":
             with _state_lock:
-                # Não abre novo lobby se já há um ativo
-                if _lobby and not _lobby["full"] and time.time() - _lobby["ts"] < _LOBBY_TTL:
-                    self._send(409, {"error": "servidor ocupado"})
+                # Só bloqueia se há uma partida EM ANDAMENTO (lobby cheio e
+                # dentro do TTL). Um lobby vazio/abandonado é sobrescrito —
+                # o game server já limita a 2 jogadores de verdade.
+                if _lobby and _lobby["full"] and time.time() - _lobby["ts"] < _LOBBY_TTL:
+                    self._send(409, {"error": "partida em andamento"})
                     return
                 code = _gen_code()
                 _lobby = {"code": code, "ts": time.time(), "full": False}
@@ -70,6 +72,20 @@ class _Handler(BaseHTTPRequestHandler):
             print(f"[matchmaking] Lobby {code} — segundo jogador entrou.")
             self._send(200, {"ok": True})
 
+        else:
+            self._send(404, {"error": "not found"})
+
+    def do_DELETE(self):
+        global _lobby
+
+        if self.path.startswith("/lobbies/"):
+            code = self.path.split("/")[2]
+            with _state_lock:
+                if _lobby and _lobby["code"] == code:
+                    _lobby = None
+                    print(f"[matchmaking] Lobby {code} liberado.")
+            # Idempotente: liberar um lobby inexistente também é sucesso.
+            self._send(200, {"ok": True})
         else:
             self._send(404, {"error": "not found"})
 
