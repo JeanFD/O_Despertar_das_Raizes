@@ -30,17 +30,34 @@ class ServerClient:
         self._acked: set  = set()
 
     def connect(self, timeout: float = 30.0) -> bool:
-        """Handshake inicial — retorna quando recebe HELLO_ACK."""
+        """Handshake inicial — retorna quando recebe HELLO_ACK.
+
+        Processa o LOTE INTEIRO de mensagens antes de retornar. O servidor
+        envia GAME_START logo após o HELLO_ACK e, para o 2º jogador, os dois
+        pacotes costumam chegar no mesmo poll(). Se retornássemos no HELLO_ACK
+        sem olhar o resto do lote, o GAME_START seria descartado (poll já o
+        removeu da fila) e o P2 ficaria preso na tela de espera para sempre,
+        porque o servidor manda GAME_START uma única vez, sem retransmissão.
+        """
         deadline = time.monotonic() + timeout
         while time.monotonic() < deadline:
-            self.conn.send(MSG_HELLO)
+            if not self.connected:
+                self.conn.send(MSG_HELLO)
             time.sleep(0.05)
             for msg in self.conn.poll():
-                if msg.get("t") == MSG_HELLO_ACK:
+                t = msg.get("t")
+                if t == MSG_HELLO_ACK:
                     self.player_id = msg.get("player_id")
                     self.game_mode = msg.get("mode")
                     self.connected = True
-                    return True
+                elif t == MSG_GAME_START:
+                    self.game_started = True
+                elif t == MSG_STATE:
+                    # Snapshot já chegando ⇒ partida em andamento mesmo que o
+                    # GAME_START tenha se perdido. Defesa contra perda de UDP.
+                    self.game_started = True
+            if self.connected:
+                return True
         return False
 
     def send_input(self, inp: dict):
@@ -57,6 +74,9 @@ class ServerClient:
                 self.game_started = True
             elif t == MSG_STATE:
                 last_state = msg
+                # Receber snapshot implica que a partida já está rodando —
+                # cobre o caso de o GAME_START ter se perdido no caminho.
+                self.game_started = True
             elif t == MSG_EVENT:
                 seq = msg.get("seq")
                 self.conn.send(MSG_EVENT_ACK, seq=seq)
