@@ -21,6 +21,7 @@ SETTINGS_ITEMS = [
     ("fullscreen",    "toggle",  "Tela Cheia"),
     ("screen_shake",  "toggle",  "Screen Shake"),
     ("show_fps",      "toggle",  "Mostrar FPS"),
+    ("show_hitboxes", "toggle",  "Mostrar Hitboxes"),
     ("_back",         "action",  "< Voltar"),
 ]
 

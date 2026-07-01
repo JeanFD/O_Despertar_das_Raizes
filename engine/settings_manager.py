@@ -9,6 +9,7 @@ DEFAULTS = {
     "fullscreen": False,
     "screen_shake": True,
     "show_fps": False,
+    "show_hitboxes": False,
     "last_save_slot": -1
 }
 
