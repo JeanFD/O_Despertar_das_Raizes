@@ -3,7 +3,7 @@ import pygame
 from entities.entity import Entity
 from components.physics_body import PhysicsBody
 from components.health import Health
-from entities.player import PARRY_WINDOW, PARRY_CD
+from entities.player import PARRY_WINDOW, PARRY_CD, sheet_path_for, hitboxes_enabled
 
 LERP_SPEED = 18.0
 
@@ -19,8 +19,12 @@ class RemotePlayer(Entity):
 
     net_remote = True
 
-    def __init__(self, game, x: float, y: float):
+    def __init__(self, game, x: float, y: float, team_id: str = "p1"):
         super().__init__(game, x, y)
+
+        # Identidade (p1/p2) define o sheet — mesma regra do Player, para que
+        # o jogador remoto tenha a mesma aparência que teria como Player local.
+        self.team = team_id
 
         self.add(PhysicsBody, 24, 40)
         self.hp = self.add(Health, 100)
@@ -42,12 +46,21 @@ class RemotePlayer(Entity):
 
         try:
             from components.animation import AnimationController
-            sheet = game.assets.image("assets/images/sprites/player.png")
-            self.anim = self.add(AnimationController, sheet, 48, 48, fps=12)
-            self.anim.add("idle", 0, 0, 3)
-            self.anim.add("run",  1, 0, 7)
-            self.anim.add("jump", 2, 0, 0)
-            self.anim.add("fall", 2, 1, 1)
+            sheet = game.assets.image(sheet_path_for(team_id))
+            self.anim = self.add(AnimationController, sheet, 96, 64, fps=12)
+            # Mesmas linhas do Player — o host manda o nome da anim (inclusive
+            # ações) via snapshot e o RemotePlayer só reproduz.
+            self.anim.add("idle",   0, 0, 3)
+            self.anim.add("run",    1, 0, 7)
+            self.anim.add("jump",   2, 0, 2)
+            self.anim.add("fall",   3, 0, 2)
+            self.anim.add("attack", 4, 0, 3)
+            self.anim.add("ranged", 5, 0, 3)
+            self.anim.add("plunge", 6, 0, 3)
+            self.anim.add("parry",  7, 0, 2)
+            self.anim.add("dash",   8, 0, 1)
+            self.anim.add("wall_slide", 9, 0, 1)
+            self.anim.add("hurt",   10, 0, 3)
             self._has_anim = True
         except Exception:
             pass
@@ -111,7 +124,14 @@ class RemotePlayer(Entity):
                 pygame.draw.rect(surface, (140, 160, 255), r, 2)
 
         self._draw_hp_bar(surface, camera)
-        self._draw_debug_overlay(surface, camera)
+
+        # Overlays de hitbox só com a setting ligada (mesmo gate do Player).
+        if hitboxes_enabled(self.game):
+            body = self.get(PhysicsBody)
+            if body:
+                pygame.draw.rect(surface, (60, 220, 120),
+                                 camera.apply_rect(body.rect), 1)
+            self._draw_debug_overlay(surface, camera)
 
     def _draw_debug_overlay(self, surface, camera):
         """Reproduz os overlays de debug do Player.draw usando o estado

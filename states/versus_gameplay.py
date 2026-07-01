@@ -167,12 +167,10 @@ class VersusGameplayState(BaseState):
             # Quem é RemotePlayer depende de qual player_id este cliente tem.
             if self._player_id == 1:
                 # Sou P1 local → P2 é remoto
-                self._p2 = RemotePlayer(self.game, *self._sp2)
-                self._p2.team = "p2"
+                self._p2 = RemotePlayer(self.game, *self._sp2, team_id="p2")
             else:
                 # Sou P2 local → P1 é remoto (comportamento P2P original)
-                self._p1 = RemotePlayer(self.game, *self._sp1)
-                self._p1.team = "p1"
+                self._p1 = RemotePlayer(self.game, *self._sp1, team_id="p1")
 
         if self.is_host or self._player_id == 1:
             self._local_entity, self._remote_entity = self._p1, self._p2

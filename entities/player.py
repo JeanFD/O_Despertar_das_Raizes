@@ -6,6 +6,25 @@ from components.animation import AnimationController
 MOVE_SPEED = 220
 JUMP_FORCE = -600
 
+
+def sheet_path_for(team_id: str) -> str:
+    """Sheet por identidade do jogador — P1 e P2 com aparência diferente.
+
+    Usado por Player E RemotePlayer para que a escolha do sprite dependa de
+    QUEM é o jogador (p1/p2), não da classe. Assim os dois ficam visualmente
+    distintos em qualquer tela (host, cliente ou servidor dedicado).
+    """
+    if team_id == "p2":
+        return "assets/images/sprites/player_p2.png"
+    return "assets/images/sprites/player.png"
+
+
+def hitboxes_enabled(game) -> bool:
+    """True se a setting 'Mostrar Hitboxes' estiver ligada. Gate único para
+    todos os overlays de debug (corpo, ataque, parry, plunge)."""
+    s = getattr(game, "settings", None)
+    return bool(s and s.get("show_hitboxes"))
+
 COYOTE_TIME = 0.10
 JUMP_BUFFER = 0.10
 
@@ -99,14 +118,24 @@ class Player(Entity):
 
         self.attack_timer = 0.0
 
-        sheet     = game.assets.image("assets/images/sprites/player.png")
+        sheet     = game.assets.image(sheet_path_for(team_id))
         self.body = self.add(PhysicsBody, 24, 40)
-        self.anim = self.add(AnimationController, sheet, 48, 48, fps=12)
+        self.anim = self.add(AnimationController, sheet, 96, 64, fps=12)
 
-        self.anim.add("idle", 0, 0, 3)
-        self.anim.add("run",  1, 0, 7)
-        self.anim.add("jump", 2, 0, 0)
-        self.anim.add("fall", 2, 1, 1)
+        # Sheet unificado 96x64 (grid 8x8). Corpo (hitbox 24x40) ancorado na
+        # base-centro da celula; cada acao tem sua propria linha, com a hitbox
+        # de golpe cabendo no frame largo. Ver assets/images/sprites/player.png.
+        self.anim.add("idle",   0, 0, 3)
+        self.anim.add("run",    1, 0, 7)
+        self.anim.add("jump",   2, 0, 2)
+        self.anim.add("fall",   3, 0, 2)
+        self.anim.add("attack", 4, 0, 3)
+        self.anim.add("ranged", 5, 0, 3)
+        self.anim.add("plunge", 6, 0, 3)
+        self.anim.add("parry",  7, 0, 2)
+        self.anim.add("dash",   8, 0, 1)
+        self.anim.add("wall_slide", 9, 0, 1)
+        self.anim.add("hurt",   10, 0, 3)
 
         self.facing = 1
 
@@ -117,6 +146,10 @@ class Player(Entity):
         self.dash_cd    = 0.0
 
         self.ranged_cd = 0.0
+        # Janela curta só para exibir a pose de arremesso (o ranged em si é
+        # instantâneo — dispara o projétil e volta). Sem isso não haveria
+        # estado durável para a anim "ranged" aparecer.
+        self.ranged_anim_timer = 0.0
         self._spawn_projectile_callback = False
 
         self.plunge_timer = 0.0
@@ -218,6 +251,7 @@ class Player(Entity):
                 and self.stamina >= COST_RANGED):
             self.stamina -= COST_RANGED
             self.ranged_cd = RANGED_CD
+            self.ranged_anim_timer = 0.25
             self._spawn_projectile_callback = True
         if parry_edge:
             if (self.parry_cd <= 0 and self.parry_timer <= 0
@@ -232,6 +266,7 @@ class Player(Entity):
         self.dash_timer = max(0.0, self.dash_timer - dt)
         self.dash_cd = max(0.0, self.dash_cd - dt)
         self.ranged_cd = max(0.0, self.ranged_cd - dt)
+        self.ranged_anim_timer = max(0.0, self.ranged_anim_timer - dt)
         self.plunge_cd = max(0.0, self.plunge_cd - dt)
         self.wall_jump_lockout = max(0.0, self.wall_jump_lockout - dt)
         self.parry_timer = max(0.0, self.parry_timer - dt)
@@ -271,11 +306,28 @@ class Player(Entity):
             self.vel.x = 0
 
         if not body.on_ground:
-            anim = "jump" if self.vel.y < 0 else "fall"
+            if body.on_wall and self.vel.y > 0:
+                anim = "wall_slide"      # descendo colado na parede
+            else:
+                anim = "jump" if self.vel.y < 0 else "fall"
         elif abs(self.vel.x) > 10:
             anim = "run"
         else:
             anim = "idle"
+        # Ações sobrepõem o movimento, em ordem de prioridade. plunge vem antes
+        # de attack porque o shockwave de pouso também usa attack_timer.
+        if self.plunge_timer > 0 or self.plunge_landing:
+            anim = "plunge"
+        elif self.attack_timer > 0:
+            anim = "attack"
+        elif self.parry_timer > 0:
+            anim = "parry"
+        elif self.ranged_anim_timer > 0:
+            anim = "ranged"
+        elif self.stun_timer > 0:
+            anim = "hurt"                # atordoado (ex.: golpe defendido no parry)
+        elif self.dash_timer > 0:
+            anim = "dash"
         # No cliente, on_ground não é calculado (PhysicsSystem só roda no host),
         # então a lógica acima trava em "fall". Quando vem snapshot do host,
         # usamos o anim autoritativo para refletir o estado real.
@@ -371,6 +423,14 @@ class Player(Entity):
 
     def draw(self, surface, camera):
         self.anim.draw(surface, self.pos, camera)
+
+        # Todos os overlays de hitbox só aparecem com a setting ligada.
+        if not hitboxes_enabled(self.game):
+            return
+
+        # Caixa de colisão do corpo (verde)
+        pygame.draw.rect(surface, (60, 220, 120),
+                         camera.apply_rect(self.body.rect), 1)
 
         # Debug: hitboxes do ataque (normal e shockwave do plunge)
         if self.attack_hb.active:
