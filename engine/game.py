@@ -24,6 +24,19 @@ class Game:
         from engine.settings_manager import SettingsManager
         self.settings = SettingsManager()
 
+        from engine.sound_manager import SoundManager
+        self.sound = SoundManager()
+        self.sound.set_music_volume(
+            self.settings.get("music_volume") * self.settings.get("master_volume")
+        )
+        self.sound.set_sfx_volume(
+            self.settings.get("sfx_volume") * self.settings.get("master_volume")
+        )
+        self.sound.load_sfx_batch({
+            "menu_hover":   "assets/audio/sfx/menu_hover.wav",
+            "menu_confirm": "assets/audio/sfx/menu_confirm.wav",
+        })
+
         self._fps_font = pygame.font.SysFont("consolas,monospace", 16)
 
         # Aplica o modo de tela conforme a setting persistida ANTES de

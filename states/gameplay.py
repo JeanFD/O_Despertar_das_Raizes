@@ -13,6 +13,7 @@ TILE = 32
 
 class GameplayState(BaseState):
     def on_enter(self):
+        self.game.sound.play_music("assets/audio/music/fase1_theme.ogg")
         from world.level import Level
         self.level = Level(self.game, "assets/maps/world.tmx")
 

@@ -27,15 +27,18 @@ class PauseState(BaseState):
 
         elif event.key in (pygame.K_UP, pygame.K_w):
             self.selected = (self.selected - 1) % len(self.items)
+            self.game.sound.play("menu_hover")
 
         elif event.key in (pygame.K_DOWN, pygame.K_s):
             self.selected = (self.selected + 1) % len(self.items)
+            self.game.sound.play("menu_hover")
 
         elif event.key in (pygame.K_RETURN, pygame.K_SPACE):
             self._confirm()
 
     def _confirm(self):
         choice = self.items[self.selected]
+        self.game.sound.play("menu_confirm")
 
         if choice == "Continuar":
             self.game.states.pop()
