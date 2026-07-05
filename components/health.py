@@ -21,6 +21,11 @@ class Health:
         )
 
         if self.current <= 0:
+            team = getattr(self.entity, "team", None)
+            if team == "player":
+                self.entity.game.sound.play("player_death")
+            else:
+                self.entity.game.sound.play("enemy_death")
             self.entity.kill()
 
     def update(self, dt):

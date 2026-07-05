@@ -35,6 +35,13 @@ class Game:
         self.sound.load_sfx_batch({
             "menu_hover":   "assets/audio/sfx/menu_hover.wav",
             "menu_confirm": "assets/audio/sfx/menu_confirm.wav",
+            "scarecrow_attack": "assets/audio/sfx/scarecrow_attack.wav",
+            "player_attack": "assets/audio/sfx/player_attack.wav",
+            "hit_player":     "assets/audio/sfx/hit_player.wav",
+            "hit_enemy":      "assets/audio/sfx/hit_enemy.wav",
+            "parry_success":  "assets/audio/sfx/parry_success.ogg",
+            "player_death":    "assets/audio/sfx/player_death.wav",
+            "enemy_death":     "assets/audio/sfx/enemy_death.ogg",
         })
 
         self._fps_font = pygame.font.SysFont("consolas,monospace", 16)

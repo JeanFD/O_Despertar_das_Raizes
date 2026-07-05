@@ -213,6 +213,7 @@ class Player(Entity):
 
         if attack_edge and self.attack_timer <= 0:
             self.attack_timer = ATTACK_TIME
+            self.game.sound.play("player_attack")
 
         if (ranged_edge and self.ranged_cd <= 0 and self.abilities.get("ranged")
                 and self.stamina >= COST_RANGED):
