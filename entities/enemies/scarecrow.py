@@ -4,6 +4,7 @@ from entities.entity import Entity
 from components.physics_body import PhysicsBody 
 from components.health import Health
 from components.hitbox import Hitbox
+from components.animation import AnimationController as Animation
 
 class Scarecrow(Entity):
     def __init__(self, game, x, y):
@@ -23,6 +24,16 @@ class Scarecrow(Entity):
                                 damage=18, team="enemy", knockback=300)
         self.hb_front.active = False
         self.team = "enemy"
+
+
+        self.sheet = game.assets.image('assets/images/entities/scarecrow_idle.png') 
+
+        # 1. Defina o atributo com o nome correto: self.walk_anim
+        self.walk_anim = Animation(self, self.sheet, 84, 100, fps=8)
+
+        # 2. Use self.walk_anim para adicionar a animação
+        self.walk_anim.add("walk", 0, 0, 2)
+        self.walk_anim.play("walk")
 
         self.state       = "idle"
         self.timer       = 1.5
@@ -48,6 +59,12 @@ class Scarecrow(Entity):
             return
 
         self.timer -= dt
+
+        # Atualiza a animação apenas se o estado for um desses
+        if self.state in ("idle", "dash"):
+            # Se dir for -1 (esquerda), flip_x deve ser True
+            self.walk_anim.play("walk", flip_x=(self.dir == -1))
+            self.walk_anim.update(dt)
 
         if self.state == "idle":
             self._update_idle(dt)
@@ -175,18 +192,8 @@ class Scarecrow(Entity):
     # ------------------------------------------------------------------ draw
 
     def draw(self, surface, camera):
-        colors = {
-            "idle":        (150, 150, 100),  # cinza-amarelado — andando
-            "telegraph":   (255, 200,   0),  # amarelo — aviso
-            "dash":        (255, 120,   0),  # laranja — correndo
-            "attack_down": (255,  60,  60),  # vermelho — rasteira
-            "attack_front": (200,   0, 200),  # roxo — front
-            "recovery":    ( 80, 180,  80),  # verde — vulnerável
-        }
 
-        color = colors.get(self.state, (255, 255, 255))
-        dr = camera.apply_rect(self.body.rect)
-        pygame.draw.rect(surface, color, dr)
+        self.walk_anim.draw(surface, self.pos, camera)
 
         if self.hb_down.active:
             pygame.draw.rect(surface, (255, 200, 0),
