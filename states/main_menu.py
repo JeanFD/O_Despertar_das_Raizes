@@ -13,6 +13,8 @@ class MainMenu(BaseState):
 
         self.has_save = self._check_saves()
 
+        self.game.sound.play_music("assets/audio/music/menu_theme.mp3")
+
         self.items = [
             "Novo Jogo",
             "Continuar",
@@ -34,9 +36,11 @@ class MainMenu(BaseState):
 
         if event.key in (pygame.K_UP, pygame.K_w):
             self.selected = (self.selected - 1) % len(self.items)
+            self.game.sound.play("menu_hover")
 
         elif event.key in (pygame.K_DOWN, pygame.K_s):
             self.selected = (self.selected + 1) % len(self.items)
+            self.game.sound.play("menu_hover")
 
         elif event.key in (pygame.K_RETURN, pygame.K_SPACE):
             self._confirm()
@@ -48,12 +52,16 @@ class MainMenu(BaseState):
     def _confirm(self):
         choice = self.items[self.selected]
 
+        if choice == "Continuar" and not self.has_save:
+            return  
+
+        self.game.sound.play("menu_confirm")
+
         if choice == "Novo Jogo":
             self._start_new_game()
         
         elif choice == "Continuar":
-            if self.has_save:
-                self._open_save_menu(mode="load")
+            self._open_save_menu(mode="load")
 
         elif choice == "Multiplayer":
             self._open_multiplayer()

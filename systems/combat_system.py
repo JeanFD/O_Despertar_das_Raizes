@@ -65,6 +65,7 @@ class CombatSystem:
                             atk_hp.take_damage(30)
                         ahb.register_hit(id(de))
                         de.game.events.emit("parry_success", entity=de)
+                        de.game.sound.play("parry_success")
                         continue
 
                     dir_x = 1 if de.pos.x > ae.pos.x else -1
@@ -73,6 +74,10 @@ class CombatSystem:
                     dhp.take_damage(ahb.damage, kb)
                     ahb.register_hit(id(de), cd=0.6)
 
+                    if de.team == "player":
+                        de.game.sound.play("hit_player")
+                    else:
+                        de.game.sound.play("hit_enemy")
                     # Reembolso de stamina ao acertar — Player (e só Player)
                     # ganha um pouco de fôlego ao conectar um golpe. Projéteis
                     # não têm stamina, então não fazem nada aqui. Mantém pressão

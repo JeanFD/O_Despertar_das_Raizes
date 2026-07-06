@@ -157,12 +157,14 @@ class Scarecrow(Entity):
         # rasteira: hitbox centrada no espantalho, varre os dois lados
         self._change_state("attack_down")
         self.hb_down.active = True
+        self.game.sound.play("scarecrow_attack")
 
     def _start_attack_front(self):
         # front: hitbox na frente, do lado que ele está olhando
         self._change_state("attack_front")
         self.hb_front.active = True
         self.hb_front.offset.x = 0 if self.dir == 1 else -48
+        self.game.sound.play("scarecrow_attack")
 
     # ------------------------------------------------------------------ utils
 
