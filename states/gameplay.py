@@ -83,6 +83,9 @@ class GameplayState(BaseState):
             x_min = props.get("x_min", data["x"] - 100)
             x_max = props.get("x_max", data["x"] + 100)
             self.entities.append(Spike(self.game, data["x"], data["y"], x_min, x_max))
+        for data in self.level.spawn_points.get("static_spike", []):
+            from entities.static_spike import StaticSpike
+            self.entities.append(StaticSpike(self.game, data["x"], data["y"]))            
 
     def handle_event(self, event):
         if event.type == pygame.KEYDOWN:
