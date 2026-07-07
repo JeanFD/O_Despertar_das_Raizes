@@ -1,9 +1,10 @@
 {
-  "master_volume": 0.6,
-  "music_volume": 0.6,
-  "sfx_volume": 0.6,
-  "fullscreen": true,
+  "master_volume": 0.2,
+  "music_volume": 0.2,
+  "sfx_volume": 1.0,
+  "fullscreen": false,
   "screen_shake": false,
   "show_fps": true,
+  "show_hitboxes": false,
   "last_save_slot": 0
 }
