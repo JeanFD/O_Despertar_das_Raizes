@@ -55,6 +55,12 @@ class GameplayState(BaseState):
 
         self.physics = PhysicsSystem(self.level.tilemap)
         self.camera  = Camera(self.level.width, self.level.height)
+        # Trava a camera nas bordas dos blocos de colisao nos dois eixos:
+        # nada de vazio abaixo do chao, acima do teto, nem alem das paredes.
+        self.camera.set_bounds(
+            self.level.wall_left, self.level.ceiling_y,
+            self.level.wall_right, self.level.floor_y,
+        )
         self.camera.follow(self.player)
 
         # Fatores reduzidos (parallax mais sutil). scroll_y=True liga o

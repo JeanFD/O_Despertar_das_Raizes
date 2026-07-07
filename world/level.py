@@ -19,6 +19,16 @@ class Level:
         self.triggers = []
         self._parse()
 
+        # Limites dos blocos de colisao. A camera clampa aqui para nunca
+        # revelar o vazio alem do chao (floor_y) nem das paredes laterais
+        # (wall_left/right). O mapa e maior de proposito (margens vazias) para
+        # o ring-out por queda, entao floor_y != height e as bordas != 0/width.
+        rects = self.tilemap.collision_rects
+        self.floor_y    = max((r.bottom for r in rects), default=self.height)
+        self.ceiling_y  = min((r.top   for r in rects), default=0)
+        self.wall_left  = min((r.left  for r in rects), default=0)
+        self.wall_right = max((r.right for r in rects), default=self.width)
+
     def _parse(self):
         ts = self.tile_size
         for layer in self.tmx.layers:
