@@ -63,14 +63,17 @@ class GameplayState(BaseState):
         )
         self.camera.follow(self.player)
 
-        # Fatores reduzidos (parallax mais sutil). scroll_y=True liga o
-        # parallax vertical; cada camada move um pouco na vertical tambem.
+        # Parallax da floresta (MorningLayer 1..6): neste pack a camada 6 e o
+        # fundo (mais lenta) e a 1 e a mais proxima (mais rapida). Desenhadas
+        # de tras pra frente (6 -> 1), respeitando a transparencia de cada uma.
+        # scroll_y=True liga o parallax vertical (fator = 40% do horizontal).
         self.parallax_layers = [
-            ParallaxLayer(self.game.assets.image("assets/images/backgrounds/sky.png"),         0.0),
-            ParallaxLayer(self.game.assets.image("assets/images/backgrounds/mountains.png"),  0.07),
-            ParallaxLayer(self.game.assets.image("assets/images/backgrounds/clouds.png"),      0.15),
-            ParallaxLayer(self.game.assets.image("assets/images/backgrounds/forest_far.png"), 0.22),
-            ParallaxLayer(self.game.assets.image("assets/images/backgrounds/forest_near.png"),0.45),
+            ParallaxLayer(self.game.assets.image("assets/images/forest/MorningLayer6.png"), 0.0),
+            ParallaxLayer(self.game.assets.image("assets/images/forest/MorningLayer5.png"), 0.08),
+            ParallaxLayer(self.game.assets.image("assets/images/forest/MorningLayer4.png"), 0.16),
+            ParallaxLayer(self.game.assets.image("assets/images/forest/MorningLayer3.png"), 0.26),
+            ParallaxLayer(self.game.assets.image("assets/images/forest/MorningLayer2.png"), 0.36),
+            ParallaxLayer(self.game.assets.image("assets/images/forest/MorningLayer1.png"), 0.48),
         ]
         self._spawn_map_entities()
         
