@@ -57,12 +57,14 @@ class GameplayState(BaseState):
         self.camera  = Camera(self.level.width, self.level.height)
         self.camera.follow(self.player)
 
+        # Fatores reduzidos (parallax mais sutil). scroll_y=True liga o
+        # parallax vertical; cada camada move um pouco na vertical tambem.
         self.parallax_layers = [
             ParallaxLayer(self.game.assets.image("assets/images/backgrounds/sky.png"),         0.0),
-            ParallaxLayer(self.game.assets.image("assets/images/backgrounds/mountains.png"),  0.1),
-            ParallaxLayer(self.game.assets.image("assets/images/backgrounds/clouds.png"),         0.2),
-            ParallaxLayer(self.game.assets.image("assets/images/backgrounds/forest_far.png"), 0.3),
-            ParallaxLayer(self.game.assets.image("assets/images/backgrounds/forest_near.png"),0.6),
+            ParallaxLayer(self.game.assets.image("assets/images/backgrounds/mountains.png"),  0.07),
+            ParallaxLayer(self.game.assets.image("assets/images/backgrounds/clouds.png"),      0.15),
+            ParallaxLayer(self.game.assets.image("assets/images/backgrounds/forest_far.png"), 0.22),
+            ParallaxLayer(self.game.assets.image("assets/images/backgrounds/forest_near.png"),0.45),
         ]
         self._spawn_map_entities()
         
