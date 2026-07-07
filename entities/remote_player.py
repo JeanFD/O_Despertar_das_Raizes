@@ -50,7 +50,7 @@ class RemotePlayer(Entity):
             self.anim = self.add(AnimationController, sheet, 96, 64, fps=12)
             # Mesmas linhas do Player — o host manda o nome da anim (inclusive
             # ações) via snapshot e o RemotePlayer só reproduz.
-            self.anim.add("idle",   0, 0, 3)
+            self.anim.add("idle",   0, 0, 3, fps=5)   # igual ao Player
             self.anim.add("run",    1, 0, 7)
             self.anim.add("jump",   2, 0, 2)
             self.anim.add("fall",   3, 0, 2)

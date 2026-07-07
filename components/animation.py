@@ -14,9 +14,13 @@ class AnimationController:
         self._flip_x    = False
         self.image      = None
 
-    def add(self, name, row, start ,end):
-        """Define uma animação: linha do sheet, frame inicial, frame final."""
-        self._anims[name] = (row, start, end)
+    def add(self, name, row, start ,end, fps=None):
+        """Define uma animação: linha do sheet, frame inicial, frame final.
+
+        fps opcional sobrescreve a taxa padrão do controller só para esta
+        animação (ex.: idle mais lento que o resto). None = usa self.fps.
+        """
+        self._anims[name] = (row, start, end, fps if fps else self.fps)
 
     def play(self, name, flip_x = False):
         if name != self._current:
@@ -29,14 +33,13 @@ class AnimationController:
         if not self._current:
             return
         self._timer += dt
-        spf = 1.0 / self.fps
+        row, start, end, fps = self._anims[self._current]
+        spf = 1.0 / fps
 
         if self._timer >= spf:
             self._timer -= spf
-            row, start, end = self._anims[self._current]
             self._frame = start + (self._frame - start + 1) % (end - start + 1)
 
-        row, _, _ = self._anims[self._current]
         x = self._frame * self.frame_w
         y = row         * self.frame_h
         frame = self.sheet.subsurface((x, y, self.frame_w, self.frame_h))

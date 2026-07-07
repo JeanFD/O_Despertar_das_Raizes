@@ -125,7 +125,7 @@ class Player(Entity):
         # Sheet unificado 96x64 (grid 8x8). Corpo (hitbox 24x40) ancorado na
         # base-centro da celula; cada acao tem sua propria linha, com a hitbox
         # de golpe cabendo no frame largo. Ver assets/images/sprites/player.png.
-        self.anim.add("idle",   0, 0, 3)
+        self.anim.add("idle",   0, 0, 3, fps=5)   # parado: respiro lento
         self.anim.add("run",    1, 0, 7)
         self.anim.add("jump",   2, 0, 2)
         self.anim.add("fall",   3, 0, 2)
