@@ -40,9 +40,19 @@ class _HeadlessGame:
         def font(self, _path, _size):
             return pygame.font.SysFont("monospace", _size)
 
+    class _Sound:
+        """No-op: o servidor headless nao toca audio. Qualquer metodo
+        (play, play_music, set_*_volume, load_sfx_batch) vira nada. Sem isso,
+        as chamadas de som no codigo compartilhado (Player.update_input no
+        ataque, CombatSystem em hit/parry, Health na morte) estouravam
+        AttributeError e derrubavam a partida ('conexao perdida')."""
+        def __getattr__(self, _name):
+            return lambda *a, **k: None
+
     def __init__(self):
         self.assets = self._Assets()
         self.events = EventBus()
+        self.sound = self._Sound()
 
 
 def _entity_state(e) -> dict:
