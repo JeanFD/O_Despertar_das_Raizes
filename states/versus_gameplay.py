@@ -68,6 +68,13 @@ class VersusGameplayState(BaseState):
         self._post_match_delay = 4.0
         self._went_to_post = False
 
+        # Cliente (VPS): a simulacao roda no servidor, entao os sons de gameplay
+        # (ataque/morte) nao disparam localmente. Reproduzimos com base no
+        # snapshot; estes dicts guardam o estado anterior por jogador para
+        # detectar as transicoes (anim->attack, alive->False).
+        self._sfx_prev_anim = {}
+        self._sfx_prev_alive = {}
+
         self._physics  = None
         self._combat   = CombatSystem()
         self._render   = RenderSystem()
@@ -344,6 +351,7 @@ class VersusGameplayState(BaseState):
                     self._p1.apply_state(state.get("p1", {}))
                 self._reconcile_local(state.get("p2", {}))
             self._sync_remote_projectiles(state.get("proj", []))
+            self._play_client_sounds(state)
             mstate = state.get("match")
             if mstate:
                 self.match.apply_dict(mstate)
@@ -507,6 +515,28 @@ class VersusGameplayState(BaseState):
         self._entities = [e for e in self._entities if getattr(e, 'alive', True)
                           or e is self._p1 or e is self._p2]
 
+    def _play_client_sounds(self, state: dict):
+        """Cliente (VPS): reproduz os sons de gameplay localmente a partir do
+        snapshot, ja que a simulacao (onde os sound.play originais disparam)
+        roda no servidor headless. Ataque = transicao do anim para 'attack';
+        morte = transicao alive->False. O som de hit vem pelo evento 'dmg'.
+        Roda so no cliente para nao duplicar no host/single-player."""
+        if self.is_host:
+            return
+        for key in ("p1", "p2"):
+            s = state.get(key)
+            if not s:
+                continue
+            anim = s.get("anim")
+            if anim == "attack" and self._sfx_prev_anim.get(key) != "attack":
+                self.game.sound.play("player_attack")
+            self._sfx_prev_anim[key] = anim
+
+            alive = bool(s.get("alive", True))
+            if self._sfx_prev_alive.get(key, True) and not alive:
+                self.game.sound.play("player_death")
+            self._sfx_prev_alive[key] = alive
+
     # ── Transições / eventos ──────────────────────────────────────────────────
 
     def _apply_transition_local(self, tr: dict):
@@ -529,6 +559,11 @@ class VersusGameplayState(BaseState):
     def _apply_network_event(self, ev: dict):
         """Cliente: recebe transições e gera banners equivalentes."""
         ev_type = ev.get("ev")
+        if ev_type == "dmg":
+            # HP ja vem pelo snapshot; aqui so o feedback sonoro do golpe
+            # (versus e player-vs-player, entao sempre hit_player).
+            self.game.sound.play("hit_player")
+            return
         if ev_type == "round_start":
             self._banner_set("FIGHT!", (255, 230, 90), 1.4)
         elif ev_type == "round_end":
