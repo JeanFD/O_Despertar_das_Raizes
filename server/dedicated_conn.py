@@ -125,7 +125,10 @@ class DedicatedServerConn:
             for msg in msgs:
                 t = msg.get("t")
                 if t == MSG_INPUT:
-                    inputs[pid] = msg
+                    # UDP pode reordenar dentro do mesmo lote: fica com o input
+                    # de maior tk, nunca com um atrasado.
+                    if inputs[pid] is None or msg.get("tk", 0) >= inputs[pid].get("tk", 0):
+                        inputs[pid] = msg
                     self._last_seen[pid] = time.monotonic()
                 elif t == MSG_EVENT_ACK:
                     self._pending_acks[pid].pop(msg.get("seq"), None)

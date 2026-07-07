@@ -168,9 +168,11 @@ def run_match(conn: DedicatedServerConn, best_of: int = 3):
         for pid, inp in ((1, inp1), (2, inp2)):
             if inp:
                 tk = inp.get("tk", 0)
+                # Só adota o input se for mais novo; ignora reordenados/antigos
+                # (senão o player regride por um frame e a animação pisca).
                 if tk > last_ack[pid]:
                     last_ack[pid] = tk
-                last_input[pid] = inp
+                    last_input[pid] = inp
 
         # ── Aplica inputs ────────────────────────────────────────────────────
         if match.can_act:

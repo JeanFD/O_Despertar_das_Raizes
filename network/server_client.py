@@ -28,6 +28,10 @@ class ServerClient:
         self.player_id    = None
         self.game_mode    = None
         self._acked: set  = set()
+        # ts do último snapshot APLICADO. UDP pode reordenar: snapshots com ts
+        # menor são atrasados e devem ser ignorados, senão o estado (inclusive
+        # o nome da animação) "volta no tempo" e pisca entre ações.
+        self._last_state_ts = 0.0
 
     def connect(self, timeout: float = 30.0) -> bool:
         """Handshake inicial — retorna quando recebe HELLO_ACK.
@@ -73,10 +77,16 @@ class ServerClient:
             if t == MSG_GAME_START:
                 self.game_started = True
             elif t == MSG_STATE:
-                last_state = msg
                 # Receber snapshot implica que a partida já está rodando —
                 # cobre o caso de o GAME_START ter se perdido no caminho.
                 self.game_started = True
+                # Só aceita snapshots mais novos que o último aplicado; os
+                # atrasados (reordenados pelo UDP) são descartados para não
+                # regredir o estado e piscar a animação.
+                ts = msg.get("ts", 0.0)
+                if ts >= self._last_state_ts:
+                    self._last_state_ts = ts
+                    last_state = msg
             elif t == MSG_EVENT:
                 seq = msg.get("seq")
                 self.conn.send(MSG_EVENT_ACK, seq=seq)
