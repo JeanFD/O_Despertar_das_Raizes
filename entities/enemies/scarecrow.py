@@ -7,6 +7,8 @@ from components.hitbox import Hitbox
 from components.animation import AnimationController as Animation
 
 class Scarecrow(Entity):
+    HIT_FLASH_DURATION = 0.25
+
     def __init__(self, game, x, y):
         super().__init__(game, x, y)
         self.body     = self.add(PhysicsBody, 32, 50)
@@ -25,15 +27,22 @@ class Scarecrow(Entity):
         self.hb_front.active = False
         self.team = "enemy"
 
+        sheet = game.assets.image('assets/images/entities/scarecrow_full_sheet.png')
 
-        self.sheet = game.assets.image('assets/images/entities/scarecrow_idle.png') 
+        self.anim = Animation(self, sheet, 128, 100, fps=8)
+        # ordem dos frames no sheet: 0=idle1 1=idle2 2=idle3 3=telegraph_down
+        # 4=telegraph_front 5=attack_down1 6=attack_down2 7=attack_front1
+        # 8=attack_front2 9=gethit
+        self.anim.add("walk",            0, 0, 2)
+        self.anim.add("telegraph_down",  0, 3, 3)
+        self.anim.add("telegraph_front", 0, 4, 4)
+        self.anim.add("attack_down",     0, 5, 6)
+        self.anim.add("attack_front",    0, 7, 8)
+        self.anim.add("hit",             0, 9, 9)
+        self.anim.play("walk")
 
-        # 1. Defina o atributo com o nome correto: self.walk_anim
-        self.walk_anim = Animation(self, self.sheet, 84, 100, fps=8)
-
-        # 2. Use self.walk_anim para adicionar a animação
-        self.walk_anim.add("walk", 0, 0, 2)
-        self.walk_anim.play("walk")
+        self.hit_timer = 0.0
+        self.last_hp = self.hp.current
 
         self.state       = "idle"
         self.timer       = 1.5
@@ -60,11 +69,14 @@ class Scarecrow(Entity):
 
         self.timer -= dt
 
-        # Atualiza a animação apenas se o estado for um desses
-        if self.state in ("idle", "dash"):
-            # Se dir for -1 (esquerda), flip_x deve ser True
-            self.walk_anim.play("walk", flip_x=(self.dir == -1))
-            self.walk_anim.update(dt)
+        # detecta dano comparando HP do frame anterior com o atual
+        if self.hp.current < self.last_hp:
+            self.hit_timer = self.HIT_FLASH_DURATION
+        self.last_hp = self.hp.current
+        if self.hit_timer > 0:
+            self.hit_timer -= dt
+
+        self._update_anim()
 
         if self.state == "idle":
             self._update_idle(dt)
@@ -79,6 +91,34 @@ class Scarecrow(Entity):
         elif self.state == "recovery":
             self._update_recovery(dt)
 
+    def _update_anim(self):
+        flip_x = (self.dir == -1)
+
+        # dano tem prioridade visual sobre qualquer outro estado
+        if self.hit_timer > 0:
+            self.anim.play("hit", flip_x=flip_x)
+            self.anim.update(1 / 60)
+            return
+
+        if self.state in ("idle", "dash"):
+            self.anim.play("walk", flip_x=flip_x)
+        elif self.state == "telegraph":
+            # next_attack só é decidido dentro de _update_telegraph (que roda
+            # depois desta chamada); no primeiro frame do telegraph ele ainda
+            # pode estar None, então usamos "telegraph_down" como padrão
+            # nesse único frame de transição.
+            if self.next_attack == "front":
+                self.anim.play("telegraph_front", flip_x=flip_x)
+            else:
+                self.anim.play("telegraph_down", flip_x=flip_x)
+        elif self.state == "attack_down":
+            self.anim.play("attack_down", flip_x=flip_x)
+        elif self.state == "attack_front":
+            self.anim.play("attack_front", flip_x=flip_x)
+        # "recovery": não troca de animação — congela no último frame de
+        # ataque, já que ainda não existe um sprite dedicado para essa pausa.
+
+        self.anim.update(1 / 60)
 
     def _update_idle(self, dt):
         # anda devagar em direção ao player
@@ -192,8 +232,7 @@ class Scarecrow(Entity):
     # ------------------------------------------------------------------ draw
 
     def draw(self, surface, camera):
-
-        self.walk_anim.draw(surface, self.pos, camera)
+        self.anim.draw(surface, self.pos, camera)
 
         if self.hb_down.active:
             pygame.draw.rect(surface, (255, 200, 0),
