@@ -24,6 +24,8 @@ class GameplayState(BaseState):
         # Evita empilhar RespawnState múltiplas vezes (death dispara um frame
         # antes da tela ser empurrada; sem flag, push repete a cada frame).
         self._respawn_pushed = False
+        # Mesma proteção para a tela de vitória (ver _spawn_map_entities).
+        self._victory_pushed = False
 
         from data.save_system import SaveSystem
         self.saves = SaveSystem(self.game)
@@ -67,6 +69,10 @@ class GameplayState(BaseState):
 
 
     def _spawn_map_entities(self):
+        # Guarda os espantalhos separadamente para detectar a vitória: quando
+        # todos morrem, a tela de vitória é disparada (ver update). Zerada aqui
+        # porque este método também roda no restart/respawn do nível.
+        self._scarecrows = []
         for data in self.level.spawn_points.get("ability_pickup", []):
             ab = data["props"].get("ability")
             if ab:
@@ -76,7 +82,9 @@ class GameplayState(BaseState):
             self.entities.append(Crawler(self.game, data["x"], data["y"]))
         for data in self.level.spawn_points.get("scarecrow", []):
             from entities.enemies.scarecrow import Scarecrow
-            self.entities.append(Scarecrow(self.game, data["x"], data["y"]))
+            sc = Scarecrow(self.game, data["x"], data["y"])
+            self.entities.append(sc)
+            self._scarecrows.append(sc)
         for data in self.level.spawn_points.get("spike", []):
             from entities.spike import Spike 
             props = data.get("props", {})
@@ -99,8 +107,9 @@ class GameplayState(BaseState):
                 print("Saved!")
 
     def update(self, dt):
-        # Não processa input/física enquanto a tela de respawn estiver no topo.
-        if self._respawn_pushed:
+        # Não processa input/física enquanto a tela de respawn ou de vitória
+        # estiver no topo.
+        if self._respawn_pushed or self._victory_pushed:
             return
 
         keys = pygame.key.get_pressed()
@@ -129,6 +138,12 @@ class GameplayState(BaseState):
         if not self.player.alive and not self._respawn_pushed:
             self._show_respawn_screen()
 
+        # Vitória: todos os espantalhos do mapa foram derrotados. Só dispara
+        # se havia ao menos um (mapas sem espantalho não geram vitória).
+        if (self._scarecrows and not self._victory_pushed
+                and all(not sc.alive for sc in self._scarecrows)):
+            self._show_victory_screen()
+
         self.camera.update(dt)
 
     def _show_respawn_screen(self):
@@ -149,6 +164,25 @@ class GameplayState(BaseState):
         self.entities = [self.player]
         self._spawn_map_entities()
         self._respawn_pushed = False
+
+    def _show_victory_screen(self):
+        from states.victory_state import VictoryState
+        self._victory_pushed = True
+        self.game.states.push(VictoryState(
+            self.game,
+            on_replay=self._replay_level,
+            on_quit=self._quit_to_menu,
+        ))
+
+    def _replay_level(self):
+        """Reinicia o nível do zero após a vitória: player no spawn original
+        com HP/stamina cheios e inimigos/pickups reespawnados. Reusa o mesmo
+        reset duro do respawn."""
+        x, y = self._spawn_xy
+        self.player.reset_for_round(x, y, facing=1)
+        self.entities = [self.player]
+        self._spawn_map_entities()
+        self._victory_pushed = False
 
     def _quit_to_menu(self):
         from states.main_menu import MainMenu
