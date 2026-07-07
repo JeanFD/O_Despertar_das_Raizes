@@ -25,6 +25,10 @@ class Client:
         self.player_id = None
         self._last_seen = 0.0
         self._acked: set = set()
+        # ts do último snapshot APLICADO. UDP pode reordenar: snapshots com ts
+        # menor que este são atrasados e devem ser descartados, senão o estado
+        # (inclusive o nome da animação) "volta no tempo" e pisca.
+        self._last_state_ts = 0.0
 
     def connect(self, host_ip: str, timeout: float = 15.0) -> bool:
         """Tenta handshake com o host. Chame em thread separada."""
@@ -59,8 +63,14 @@ class Client:
         for msg in self.conn.poll():
             t = msg.get("t")
             if t == MSG_STATE:
-                last_state = msg
                 self._last_seen = time.monotonic()
+                # Só aceita snapshots mais novos que o último aplicado; os
+                # atrasados (reordenados pelo UDP) são ignorados para não
+                # regredir o estado e piscar a animação.
+                ts = msg.get("ts", 0.0)
+                if ts >= self._last_state_ts:
+                    self._last_state_ts = ts
+                    last_state = msg
             elif t == MSG_EVENT:
                 seq = msg.get("seq")
                 self.conn.send(MSG_EVENT_ACK, seq=seq)

@@ -26,6 +26,10 @@ class Host:
         self._last_seen = 0.0
         self._seq = 0
         self._pending_acks: dict = {}  # seq → (mtype, payload, sent_time, retries)
+        # tk (tick) do último input ACEITO. Descarta inputs reordenados/antigos
+        # do cliente; senão o P2 do host regride por um frame e a animação
+        # pisca nas duas telas.
+        self._last_input_tk = 0
 
     def wait_for_client(self, timeout: float = 120.0) -> bool:
         """Bloqueia até cliente enviar MSG_HELLO ou timeout expirar."""
@@ -52,8 +56,12 @@ class Host:
         for msg in self.conn.poll():
             t = msg.get("t")
             if t == MSG_INPUT:
-                last_input = msg
                 self._last_seen = time.monotonic()
+                # Ignora inputs atrasados (UDP reordena) — só o tk mais novo.
+                tk = msg.get("tk", 0)
+                if tk >= self._last_input_tk:
+                    self._last_input_tk = tk
+                    last_input = msg
             elif t == MSG_EVENT_ACK:
                 self._pending_acks.pop(msg.get("seq"), None)
             elif t == MSG_DISCONNECT:
