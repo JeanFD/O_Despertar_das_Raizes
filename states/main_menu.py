@@ -20,6 +20,7 @@ class MainMenu(BaseState):
             "Continuar",
             "Multiplayer",
             "Configurações",
+            "Créditos",
             "Sair",
         ]
     
@@ -69,6 +70,9 @@ class MainMenu(BaseState):
         elif choice == "Configurações":
             self._open_settings()
 
+        elif choice == "Créditos":
+            self._open_credits()
+
         elif choice == "Sair":
             pygame.quit()
             sys.exit()
@@ -88,6 +92,10 @@ class MainMenu(BaseState):
     def _open_settings(self):
         from states.settings_state import SettingsState
         self.game.states.push(SettingsState(self.game))
+
+    def _open_credits(self):
+        from states.credits_state import CreditsState
+        self.game.states.push(CreditsState(self.game))
 
     def update(self, dt):
         self.tick += 1
